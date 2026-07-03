@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>강의 일정 대시보드</title>
-    <link rel="stylesheet" href="./styles.css?v=20260703-2" />
+    <link rel="stylesheet" href="./styles.css?v=20260703-6" />
   </head>
   <body>
     <div class="app-shell">
@@ -117,10 +117,39 @@
           <p class="event-time"></p>
           <p class="event-location"></p>
           <p class="event-description"></p>
+          <div class="certainty-actions" aria-label="확정 여부 변경">
+            <button type="button" data-certainty="confirmed">확정</button>
+            <button type="button" data-certainty="tentative">미정</button>
+          </div>
+          <a class="edit-calendar-link event-edit-link is-hidden" href="#" target="_blank" rel="noopener">
+            일정 수정
+          </a>
         </div>
       </article>
     </template>
 
-    <script src="./app.js?v=20260703-2"></script>
+    <div class="event-modal is-hidden" id="eventModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <div class="event-modal-backdrop" data-close-modal></div>
+      <article class="event-modal-panel">
+        <button class="icon-button modal-close" type="button" id="modalCloseButton" title="닫기" aria-label="닫기">
+          <span aria-hidden="true">×</span>
+        </button>
+        <span class="status-pill" id="modalStatus"></span>
+        <h2 id="modalTitle"></h2>
+        <p class="event-time" id="modalTime"></p>
+        <p class="event-location" id="modalLocation"></p>
+        <p class="event-description modal-description" id="modalDescription"></p>
+        <div class="certainty-actions modal-certainty-actions" aria-label="확정 여부 변경">
+          <button type="button" data-certainty="confirmed">확정으로 변경</button>
+          <button type="button" data-certainty="tentative">미정으로 변경</button>
+        </div>
+        <p class="edit-hint" id="modalEditHint">확정/미정 변경은 이 브라우저의 대시보드 표시용으로 저장됩니다.</p>
+        <a class="edit-calendar-link is-hidden" id="modalEditLink" href="#" target="_blank" rel="noopener">
+          일정 및 확정 여부 수정
+        </a>
+      </article>
+    </div>
+
+    <script src="./app.js?v=20260703-6"></script>
   </body>
 </html>

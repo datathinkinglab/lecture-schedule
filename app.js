@@ -40,6 +40,8 @@ const state = {
   query: "",
   status: "all",
   selectedMonth: getMonthKey(new Date()),
+  certaintyOverrides: loadCertaintyOverrides(),
+  activeEventId: null,
   lastSyncedAt: null,
 };
 
@@ -59,6 +61,15 @@ const els = {
   prevMonthButton: document.querySelector("#prevMonthButton"),
   nextMonthButton: document.querySelector("#nextMonthButton"),
   refreshButton: document.querySelector("#refreshButton"),
+  eventModal: document.querySelector("#eventModal"),
+  modalCloseButton: document.querySelector("#modalCloseButton"),
+  modalStatus: document.querySelector("#modalStatus"),
+  modalTitle: document.querySelector("#modalTitle"),
+  modalTime: document.querySelector("#modalTime"),
+  modalLocation: document.querySelector("#modalLocation"),
+  modalDescription: document.querySelector("#modalDescription"),
+  modalEditLink: document.querySelector("#modalEditLink"),
+  modalCertaintyActions: document.querySelector(".modal-certainty-actions"),
 };
 
 init();
@@ -98,6 +109,17 @@ function bindEvents() {
   els.prevMonthButton.addEventListener("click", () => changeMonth(-1));
   els.nextMonthButton.addEventListener("click", () => changeMonth(1));
   els.refreshButton.addEventListener("click", loadEvents);
+  els.modalCloseButton.addEventListener("click", closeEventModal);
+  els.eventModal.addEventListener("click", (event) => {
+    if (event.target.matches("[data-close-modal]")) {
+      closeEventModal();
+    }
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !els.eventModal.classList.contains("is-hidden")) {
+      closeEventModal();
+    }
+  });
 }
 
 async function loadEvents() {
@@ -151,7 +173,8 @@ function normalizeEvents(events) {
       title: event.summary || "제목 없는 강의",
       location: event.location || "",
       description: stripHtml(event.description || ""),
-      certainty: getEventCertainty(event),
+      certainty: state.certaintyOverrides[event.id] || getEventCertainty(event),
+      editLink: event.htmlLink || "",
       startDate: new Date(startRaw),
       endDate: new Date(endRaw),
       allDay: Boolean(event.start?.date),
@@ -210,6 +233,10 @@ function renderAgenda(events) {
     node.querySelector(".event-time").textContent = formatEventTime(event);
     node.querySelector(".event-location").textContent = event.location ? `장소: ${event.location}` : "장소 미정";
     node.querySelector(".event-description").textContent = event.description || "상세 설명이 없습니다.";
+    bindCertaintyControls(node, event);
+    const editLink = node.querySelector(".event-edit-link");
+    editLink.classList.toggle("is-hidden", !event.editLink);
+    editLink.href = event.editLink || "#";
     pill.textContent = event.certainty === "tentative" ? "미정" : "확정";
     pill.classList.toggle("is-tentative", event.certainty === "tentative");
     pill.classList.toggle("is-confirmed", event.certainty === "confirmed");
@@ -245,11 +272,13 @@ function renderMonth(events) {
       dayEvents
         .slice(0, 4)
         .forEach((event) => {
-          const item = document.createElement("span");
+          const item = document.createElement("button");
+          item.type = "button";
           item.className = "month-event";
           item.classList.toggle("is-tentative", event.certainty === "tentative");
           item.title = event.title;
           item.textContent = event.certainty === "tentative" ? `미정 · ${event.title}` : event.title;
+          item.addEventListener("click", () => openEventModal(event));
           cell.append(item);
         });
     }
@@ -276,6 +305,58 @@ function updateMonthLabel() {
   els.monthLabel.textContent = formatMonthLabel(state.selectedMonth);
 }
 
+function openEventModal(event) {
+  state.activeEventId = event.id;
+  renderEventModal(event);
+  els.eventModal.classList.remove("is-hidden");
+  els.modalCloseButton.focus();
+}
+
+function renderEventModal(event) {
+  els.modalTitle.textContent = event.title;
+  els.modalTime.textContent = formatEventTime(event);
+  els.modalLocation.textContent = event.location ? `장소: ${event.location}` : "장소 미정";
+  els.modalDescription.textContent = event.description || "상세 설명이 없습니다.";
+  els.modalStatus.textContent = event.certainty === "tentative" ? "미정" : "확정";
+  els.modalStatus.className = `status-pill ${event.certainty === "tentative" ? "is-tentative" : "is-confirmed"}`;
+  els.modalEditLink.classList.toggle("is-hidden", !event.editLink);
+  els.modalEditLink.href = event.editLink || "#";
+  bindCertaintyControls(els.eventModal, event);
+}
+
+function closeEventModal() {
+  state.activeEventId = null;
+  els.eventModal.classList.add("is-hidden");
+}
+
+function bindCertaintyControls(root, event) {
+  root.querySelectorAll("[data-certainty]").forEach((button) => {
+    const certainty = button.dataset.certainty;
+    button.classList.toggle("is-active", event.certainty === certainty);
+    button.setAttribute("aria-pressed", String(event.certainty === certainty));
+    button.onclick = () => updateEventCertainty(event.id, certainty);
+  });
+}
+
+function updateEventCertainty(eventId, certainty) {
+  state.certaintyOverrides[eventId] = certainty;
+  saveCertaintyOverrides();
+
+  const event = state.events.find((item) => item.id === eventId);
+  if (event) {
+    event.certainty = certainty;
+  }
+
+  render();
+
+  if (state.activeEventId === eventId) {
+    const updatedEvent = state.events.find((item) => item.id === eventId);
+    if (updatedEvent) {
+      renderEventModal(updatedEvent);
+    }
+  }
+}
+
 function showNotice(message) {
   els.notice.textContent = message;
   els.notice.classList.toggle("is-hidden", !message);
@@ -294,6 +375,22 @@ function getEventCertainty(event) {
   }
 
   return "confirmed";
+}
+
+function loadCertaintyOverrides() {
+  try {
+    return JSON.parse(localStorage.getItem("lectureCertaintyOverrides") || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function saveCertaintyOverrides() {
+  try {
+    localStorage.setItem("lectureCertaintyOverrides", JSON.stringify(state.certaintyOverrides));
+  } catch {
+    showNotice("브라우저 저장소를 사용할 수 없어 확정/미정 변경이 새로고침 후 유지되지 않을 수 있습니다.");
+  }
 }
 
 function offsetDate(days, hour, minute) {
