@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>강의 일정 대시보드</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="./" aria-label="강의 일정 대시보드 홈">
+          <span class="brand-mark" aria-hidden="true">L</span>
+          <span>
+            <strong>Lecture Board</strong>
+            <small>Google Calendar Sync</small>
+          </span>
+        </a>
+
+        <nav class="view-tabs" aria-label="보기 방식">
+          <button class="tab is-active" type="button" data-view="agenda">목록</button>
+          <button class="tab" type="button" data-view="month">월간</button>
+        </nav>
+
+        <div class="top-actions">
+          <button class="icon-button" type="button" id="refreshButton" title="새로고침" aria-label="새로고침">
+            <span aria-hidden="true">↻</span>
+          </button>
+          <button class="primary-button" type="button" id="shareButton">공유 링크</button>
+        </div>
+      </header>
+
+      <main>
+        <section class="hero-band">
+          <div class="hero-copy">
+            <p class="eyebrow">Data Thinking Lab</p>
+            <h1>이승묵 박사 강의 일정</h1>
+            <p>아래에서 강의 일정을 확인해주시기 바랍니다.</p>
+          </div>
+          <div class="hero-panel" aria-label="오늘 일정 요약">
+            <div>
+              <span class="metric-label">오늘</span>
+              <strong id="todayCount">0</strong>
+            </div>
+            <div>
+              <span class="metric-label">다가오는 일정</span>
+              <strong id="upcomingCount">0</strong>
+            </div>
+            <div>
+              <span class="metric-label">마지막 동기화</span>
+              <strong id="lastSynced">-</strong>
+            </div>
+          </div>
+        </section>
+
+        <section class="controls-band" aria-label="일정 필터">
+          <div class="search-wrap">
+            <label for="searchInput">검색</label>
+            <input id="searchInput" type="search" placeholder="강의명, 장소, 설명 검색" autocomplete="off" />
+          </div>
+
+          <div class="field">
+            <label for="rangeSelect">월</label>
+            <select id="rangeSelect"></select>
+          </div>
+
+          <div class="segmented" aria-label="상태 필터">
+            <button class="segment is-active" type="button" data-status="all">전체</button>
+            <button class="segment" type="button" data-status="upcoming">예정</button>
+            <button class="segment" type="button" data-status="today">오늘</button>
+          </div>
+        </section>
+
+        <section class="notice is-hidden" id="notice" role="status"></section>
+
+        <section class="content-grid">
+          <aside class="setup-panel" aria-label="캘린더 상태">
+            <h2>캘린더 상태</h2>
+            <p id="calendarStatus">예시 일정 표시 중</p>
+            <div class="setup-list" aria-label="운영 체크">
+              <span>공개 캘린더</span>
+              <span>자동 새로고침</span>
+              <span>공유 링크</span>
+              <span>모바일 화면</span>
+            </div>
+          </aside>
+
+          <section class="dashboard-surface" aria-live="polite">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Schedule</p>
+                <h2 id="viewTitle">다가오는 강의</h2>
+              </div>
+              <span id="resultCount">0개 일정</span>
+            </div>
+
+            <div class="agenda-view" id="agendaView"></div>
+            <div class="month-view is-hidden" id="monthView"></div>
+
+            <div class="empty-state is-hidden" id="emptyState">
+              <strong>표시할 강의가 없습니다.</strong>
+              <p>검색어나 월 필터를 조정하거나 캘린더 연결 정보를 확인해 주세요.</p>
+            </div>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <template id="eventTemplate">
+      <article class="event-card">
+        <time class="date-tile">
+          <span class="date-month"></span>
+          <strong class="date-day"></strong>
+          <span class="date-weekday"></span>
+        </time>
+        <div class="event-body">
+          <div class="event-topline">
+            <h3></h3>
+            <span class="status-pill"></span>
+          </div>
+          <p class="event-time"></p>
+          <p class="event-location"></p>
+          <p class="event-description"></p>
+        </div>
+      </article>
+    </template>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
