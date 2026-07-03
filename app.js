@@ -54,18 +54,18 @@ const els = {
   upcomingCount: document.querySelector("#upcomingCount"),
   lastSynced: document.querySelector("#lastSynced"),
   notice: document.querySelector("#notice"),
-  calendarStatus: document.querySelector("#calendarStatus"),
   searchInput: document.querySelector("#searchInput"),
-  rangeSelect: document.querySelector("#rangeSelect"),
+  monthLabel: document.querySelector("#monthLabel"),
+  prevMonthButton: document.querySelector("#prevMonthButton"),
+  nextMonthButton: document.querySelector("#nextMonthButton"),
   refreshButton: document.querySelector("#refreshButton"),
-  shareButton: document.querySelector("#shareButton"),
 };
 
 init();
 
 function init() {
   hydrateFromUrl();
-  populateMonthSelect();
+  updateMonthLabel();
   bindEvents();
   loadEvents();
   window.setInterval(loadEvents, CALENDAR_CONFIG.refreshMinutes * 60 * 1000);
@@ -95,13 +95,9 @@ function bindEvents() {
     render();
   });
 
-  els.rangeSelect.addEventListener("change", (event) => {
-    state.selectedMonth = event.target.value;
-    loadEvents();
-  });
-
+  els.prevMonthButton.addEventListener("click", () => changeMonth(-1));
+  els.nextMonthButton.addEventListener("click", () => changeMonth(1));
   els.refreshButton.addEventListener("click", loadEvents);
-  els.shareButton.addEventListener("click", copyShareLink);
 }
 
 async function loadEvents() {
@@ -112,10 +108,8 @@ async function loadEvents() {
     state.events = normalizeEvents(events).sort((a, b) => a.startDate - b.startDate);
     state.lastSyncedAt = new Date();
     showNotice(isConfigured() ? "" : "현재는 예시 일정입니다. app.js에 캘린더 ID와 API 키를 입력하면 실제 일정으로 바뀝니다.");
-    els.calendarStatus.textContent = isConfigured() ? "실제 캘린더 연결됨" : "예시 일정 표시 중";
   } catch (error) {
     state.events = [];
-    els.calendarStatus.textContent = "연결 확인 필요";
     showNotice(`캘린더를 불러오지 못했습니다. ${error.message}`);
   }
 
@@ -264,15 +258,6 @@ function renderMonth(events) {
   }
 }
 
-function copyShareLink() {
-  const url = new URL(window.location.href);
-  url.searchParams.set("month", state.selectedMonth);
-  navigator.clipboard
-    .writeText(url.toString())
-    .then(() => showNotice("공유 링크를 클립보드에 복사했습니다."))
-    .catch(() => showNotice("브라우저 권한 때문에 복사하지 못했습니다. 주소창의 URL을 복사해 주세요."));
-}
-
 function hydrateFromUrl() {
   const params = new URLSearchParams(window.location.search);
   const month = params.get("month");
@@ -281,27 +266,14 @@ function hydrateFromUrl() {
   }
 }
 
-function populateMonthSelect() {
-  const current = new Date();
-  const months = [];
+function changeMonth(offset) {
+  state.selectedMonth = getMonthKey(shiftMonth(parseMonthKey(state.selectedMonth), offset));
+  updateMonthLabel();
+  loadEvents();
+}
 
-  for (let offset = -6; offset <= 12; offset += 1) {
-    months.push(getMonthKey(shiftMonth(current, offset)));
-  }
-
-  if (!months.includes(state.selectedMonth)) {
-    months.push(state.selectedMonth);
-    months.sort();
-  }
-
-  els.rangeSelect.replaceChildren();
-  months.forEach((month) => {
-    const option = document.createElement("option");
-    option.value = month;
-    option.textContent = formatMonthLabel(month);
-    els.rangeSelect.append(option);
-  });
-  els.rangeSelect.value = state.selectedMonth;
+function updateMonthLabel() {
+  els.monthLabel.textContent = formatMonthLabel(state.selectedMonth);
 }
 
 function showNotice(message) {

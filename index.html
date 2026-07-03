@@ -26,7 +26,6 @@
           <button class="icon-button" type="button" id="refreshButton" title="새로고침" aria-label="새로고침">
             <span aria-hidden="true">↻</span>
           </button>
-          <button class="primary-button" type="button" id="shareButton">공유 링크</button>
         </div>
       </header>
 
@@ -60,8 +59,16 @@
           </div>
 
           <div class="field">
-            <label for="rangeSelect">월</label>
-            <select id="rangeSelect"></select>
+            <span class="field-label">월</span>
+            <div class="month-nav" aria-label="월 선택">
+              <button class="icon-button" type="button" id="prevMonthButton" title="이전 달" aria-label="이전 달">
+                <span aria-hidden="true">‹</span>
+              </button>
+              <strong id="monthLabel">-</strong>
+              <button class="icon-button" type="button" id="nextMonthButton" title="다음 달" aria-label="다음 달">
+                <span aria-hidden="true">›</span>
+              </button>
+            </div>
           </div>
 
           <div class="segmented" aria-label="상태 필터">
@@ -74,17 +81,6 @@
         <section class="notice is-hidden" id="notice" role="status"></section>
 
         <section class="content-grid">
-          <aside class="setup-panel" aria-label="캘린더 상태">
-            <h2>캘린더 상태</h2>
-            <p id="calendarStatus">예시 일정 표시 중</p>
-            <div class="setup-list" aria-label="운영 체크">
-              <span>공개 캘린더</span>
-              <span>자동 새로고침</span>
-              <span>공유 링크</span>
-              <span>모바일 화면</span>
-            </div>
-          </aside>
-
           <section class="dashboard-surface" aria-live="polite">
             <div class="section-heading">
               <div>
