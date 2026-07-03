@@ -308,6 +308,29 @@ select {
   margin-bottom: 18px;
 }
 
+.section-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.add-schedule-button {
+  min-height: 38px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  padding: 0 14px;
+  color: white;
+  background: var(--accent);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.add-schedule-button:hover {
+  background: var(--accent-dark);
+}
+
 #resultCount {
   color: var(--muted);
   font-weight: 700;
@@ -363,12 +386,31 @@ select {
 
 .status-pill {
   flex: 0 0 auto;
+  border: 0;
   padding: 5px 9px;
   border-radius: 999px;
   color: white;
   background: var(--accent);
   font-size: 12px;
   font-weight: 800;
+}
+
+.status-toggle {
+  min-height: 30px;
+  transition:
+    transform 0.16s ease,
+    box-shadow 0.16s ease,
+    background 0.16s ease;
+}
+
+.status-toggle:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(24, 32, 38, 0.14);
+}
+
+.status-toggle:focus-visible {
+  outline: 3px solid rgba(241, 183, 74, 0.7);
+  outline-offset: 2px;
 }
 
 .status-pill.is-confirmed {
@@ -734,6 +776,17 @@ select {
   .section-heading {
     align-items: start;
     margin-bottom: 12px;
+  }
+
+  .section-actions {
+    align-items: flex-end;
+    gap: 8px;
+  }
+
+  .add-schedule-button {
+    min-height: 34px;
+    padding: 0 10px;
+    font-size: 12px;
   }
 
   .section-heading h2 {

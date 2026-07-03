@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>강의 일정 대시보드</title>
-    <link rel="stylesheet" href="./styles.css?v=20260703-6" />
+    <link rel="stylesheet" href="./styles.css?v=20260703-7" />
   </head>
   <body>
     <div class="app-shell">
@@ -87,7 +87,10 @@
                 <p class="eyebrow">Schedule</p>
                 <h2 id="viewTitle">다가오는 강의</h2>
               </div>
-              <span id="resultCount">0개 일정</span>
+              <div class="section-actions">
+                <button class="add-schedule-button is-hidden" type="button" id="addScheduleButton">일정 추가</button>
+                <span id="resultCount">0개 일정</span>
+              </div>
             </div>
 
             <div class="agenda-view" id="agendaView"></div>
@@ -112,15 +115,11 @@
         <div class="event-body">
           <div class="event-topline">
             <h3></h3>
-            <span class="status-pill"></span>
+            <button class="status-pill status-toggle" type="button"></button>
           </div>
           <p class="event-time"></p>
           <p class="event-location"></p>
           <p class="event-description"></p>
-          <div class="certainty-actions" aria-label="확정 여부 변경">
-            <button type="button" data-certainty="confirmed">확정</button>
-            <button type="button" data-certainty="tentative">미정</button>
-          </div>
           <a class="edit-calendar-link event-edit-link is-hidden" href="#" target="_blank" rel="noopener">
             일정 수정
           </a>
@@ -150,6 +149,6 @@
       </article>
     </div>
 
-    <script src="./app.js?v=20260703-6"></script>
+    <script src="./app.js?v=20260703-7"></script>
   </body>
 </html>

@@ -61,6 +61,7 @@ const els = {
   prevMonthButton: document.querySelector("#prevMonthButton"),
   nextMonthButton: document.querySelector("#nextMonthButton"),
   refreshButton: document.querySelector("#refreshButton"),
+  addScheduleButton: document.querySelector("#addScheduleButton"),
   eventModal: document.querySelector("#eventModal"),
   modalCloseButton: document.querySelector("#modalCloseButton"),
   modalStatus: document.querySelector("#modalStatus"),
@@ -109,6 +110,7 @@ function bindEvents() {
   els.prevMonthButton.addEventListener("click", () => changeMonth(-1));
   els.nextMonthButton.addEventListener("click", () => changeMonth(1));
   els.refreshButton.addEventListener("click", loadEvents);
+  els.addScheduleButton.addEventListener("click", openGoogleCalendarCreate);
   els.modalCloseButton.addEventListener("click", closeEventModal);
   els.eventModal.addEventListener("click", (event) => {
     if (event.target.matches("[data-close-modal]")) {
@@ -190,6 +192,7 @@ function render() {
 
   els.agendaView.classList.toggle("is-hidden", state.view !== "agenda");
   els.monthView.classList.toggle("is-hidden", state.view !== "month");
+  els.addScheduleButton.classList.toggle("is-hidden", state.view !== "month");
   els.emptyState.classList.toggle("is-hidden", filtered.length > 0);
   els.viewTitle.textContent = `${formatMonthLabel(state.selectedMonth)} 강의`;
   els.resultCount.textContent = `${filtered.length}개 일정`;
@@ -233,13 +236,10 @@ function renderAgenda(events) {
     node.querySelector(".event-time").textContent = formatEventTime(event);
     node.querySelector(".event-location").textContent = event.location ? `장소: ${event.location}` : "장소 미정";
     node.querySelector(".event-description").textContent = event.description || "상세 설명이 없습니다.";
-    bindCertaintyControls(node, event);
     const editLink = node.querySelector(".event-edit-link");
     editLink.classList.toggle("is-hidden", !event.editLink);
     editLink.href = event.editLink || "#";
-    pill.textContent = event.certainty === "tentative" ? "미정" : "확정";
-    pill.classList.toggle("is-tentative", event.certainty === "tentative");
-    pill.classList.toggle("is-confirmed", event.certainty === "confirmed");
+    bindCertaintyToggle(pill, event);
 
     els.agendaView.append(node);
   });
@@ -329,6 +329,17 @@ function closeEventModal() {
   els.eventModal.classList.add("is-hidden");
 }
 
+function bindCertaintyToggle(button, event) {
+  const isTentative = event.certainty === "tentative";
+  button.textContent = isTentative ? "미정" : "확정";
+  button.title = isTentative ? "클릭하면 확정으로 변경됩니다." : "클릭하면 미정으로 변경됩니다.";
+  button.setAttribute("aria-label", `${event.title} 확정 여부: ${isTentative ? "미정" : "확정"}`);
+  button.setAttribute("aria-pressed", String(!isTentative));
+  button.classList.toggle("is-tentative", isTentative);
+  button.classList.toggle("is-confirmed", !isTentative);
+  button.onclick = () => updateEventCertainty(event.id, isTentative ? "confirmed" : "tentative");
+}
+
 function bindCertaintyControls(root, event) {
   root.querySelectorAll("[data-certainty]").forEach((button) => {
     const certainty = button.dataset.certainty;
@@ -355,6 +366,42 @@ function updateEventCertainty(eventId, certainty) {
       renderEventModal(updatedEvent);
     }
   }
+}
+
+function openGoogleCalendarCreate() {
+  const date = getDefaultScheduleDate();
+  const nextDate = new Date(date);
+  nextDate.setHours(date.getHours() + 1);
+  const params = new URLSearchParams({
+    action: "TEMPLATE",
+    text: "강의 일정",
+    dates: `${formatGoogleCalendarDate(date)}/${formatGoogleCalendarDate(nextDate)}`,
+    ctz: CALENDAR_CONFIG.timezone,
+  });
+
+  window.open(`https://calendar.google.com/calendar/render?${params}`, "_blank", "noopener");
+}
+
+function getDefaultScheduleDate() {
+  const selected = parseMonthKey(state.selectedMonth);
+  const now = new Date();
+  const date =
+    selected.getFullYear() === now.getFullYear() && selected.getMonth() === now.getMonth()
+      ? new Date(now)
+      : new Date(selected);
+
+  date.setHours(10, 0, 0, 0);
+  return date;
+}
+
+function formatGoogleCalendarDate(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hour = String(date.getHours()).padStart(2, "0");
+  const minute = String(date.getMinutes()).padStart(2, "0");
+  const second = String(date.getSeconds()).padStart(2, "0");
+  return `${year}${month}${day}T${hour}${minute}${second}`;
 }
 
 function showNotice(message) {
