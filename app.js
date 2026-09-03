@@ -5,10 +5,38 @@ const CALENDAR_CONFIG = {
   refreshMinutes: 10,
 };
 
+const ACCESS_CONFIG = {
+  sessionKey: "lectureDashboardViewer",
+  storageKey: "lectureDashboardAccessSettings",
+  admin: {
+    id: "admin",
+    name: "관리자",
+    password: "admin2026",
+  },
+  defaultOrganizations: [
+    {
+      id: "exc",
+      name: "EXC",
+      password: "exc2026",
+      keywords: ["EXC", "[EXC]"],
+    },
+    {
+      id: "caret",
+      name: "캐럿",
+      password: "caret2026",
+      keywords: ["캐럿", "CARET", "Caret"],
+    },
+  ],
+  sharedKeywords: ["공통", "전체", "ALL"],
+  untaggedVisibility: "private",
+};
+
+const initialAccessData = loadAccessData();
+
 const DEMO_EVENTS = [
   {
     id: "demo-1",
-    summary: "AI 기초 입문",
+    summary: "[EXC] AI 기초 입문",
     location: "온라인 Zoom",
     description: "생성형 AI 개념, 프롬프트 작성법, 실습 안내",
     start: { dateTime: offsetDate(2, 19, 0) },
@@ -16,7 +44,7 @@ const DEMO_EVENTS = [
   },
   {
     id: "demo-2",
-    summary: "데이터 분석 실습",
+    summary: "[캐럿] 데이터 분석 실습",
     location: "강의실 B",
     description: "스프레드시트 기반 데이터 정리와 시각화",
     status: "confirmed",
@@ -25,7 +53,7 @@ const DEMO_EVENTS = [
   },
   {
     id: "demo-3",
-    summary: "프로젝트 멘토링",
+    summary: "[공통] 프로젝트 멘토링",
     location: "미정",
     description: "팀별 프로젝트 진행 상황 점검. 세부 시간이 미정입니다.",
     status: "tentative",
@@ -41,11 +69,22 @@ const state = {
   status: "all",
   selectedMonth: getMonthKey(new Date()),
   certaintyOverrides: loadCertaintyOverrides(),
+  accessData: initialAccessData,
+  viewer: loadViewerSession(initialAccessData),
   activeEventId: null,
   lastSyncedAt: null,
 };
 
 const els = {
+  authScreen: document.querySelector("#authScreen"),
+  authForm: document.querySelector("#authForm"),
+  organizationInput: document.querySelector("#organizationInput"),
+  passwordInput: document.querySelector("#passwordInput"),
+  authError: document.querySelector("#authError"),
+  appShell: document.querySelector("#appShell"),
+  viewerChip: document.querySelector("#viewerChip"),
+  adminButton: document.querySelector("#adminButton"),
+  logoutButton: document.querySelector("#logoutButton"),
   agendaView: document.querySelector("#agendaView"),
   monthView: document.querySelector("#monthView"),
   emptyState: document.querySelector("#emptyState"),
@@ -71,6 +110,15 @@ const els = {
   modalDescription: document.querySelector("#modalDescription"),
   modalEditLink: document.querySelector("#modalEditLink"),
   modalCertaintyActions: document.querySelector(".modal-certainty-actions"),
+  adminModal: document.querySelector("#adminModal"),
+  adminCloseButton: document.querySelector("#adminCloseButton"),
+  adminAccountForm: document.querySelector("#adminAccountForm"),
+  adminOrganizationId: document.querySelector("#adminOrganizationId"),
+  adminOrganizationName: document.querySelector("#adminOrganizationName"),
+  adminOrganizationPassword: document.querySelector("#adminOrganizationPassword"),
+  adminSaveButton: document.querySelector("#adminSaveButton"),
+  adminCancelButton: document.querySelector("#adminCancelButton"),
+  adminAccountList: document.querySelector("#adminAccountList"),
 };
 
 init();
@@ -79,11 +127,26 @@ function init() {
   hydrateFromUrl();
   updateMonthLabel();
   bindEvents();
-  loadEvents();
+  renderAuthState();
+  if (state.viewer) {
+    loadEvents();
+  }
   window.setInterval(loadEvents, CALENDAR_CONFIG.refreshMinutes * 60 * 1000);
 }
 
 function bindEvents() {
+  els.authForm.addEventListener("submit", handleLogin);
+  els.logoutButton.addEventListener("click", logout);
+  els.adminButton.addEventListener("click", openAdminModal);
+  els.adminCloseButton.addEventListener("click", closeAdminModal);
+  els.adminAccountForm.addEventListener("submit", saveOrganization);
+  els.adminCancelButton.addEventListener("click", resetAdminForm);
+  els.adminModal.addEventListener("click", (event) => {
+    if (event.target.matches("[data-close-admin]")) {
+      closeAdminModal();
+    }
+  });
+
   document.querySelectorAll("[data-view]").forEach((button) => {
     button.addEventListener("click", () => {
       state.view = button.dataset.view;
@@ -118,13 +181,21 @@ function bindEvents() {
     }
   });
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && !els.eventModal.classList.contains("is-hidden")) {
-      closeEventModal();
+    if (event.key === "Escape") {
+      if (!els.adminModal.classList.contains("is-hidden")) {
+        closeAdminModal();
+      } else if (!els.eventModal.classList.contains("is-hidden")) {
+        closeEventModal();
+      }
     }
   });
 }
 
 async function loadEvents() {
+  if (!state.viewer) {
+    return;
+  }
+
   showNotice("일정을 불러오는 중입니다.");
 
   try {
@@ -176,6 +247,7 @@ function normalizeEvents(events) {
       location: event.location || "",
       description: stripHtml(event.description || ""),
       certainty: state.certaintyOverrides[event.id] || getEventCertainty(event),
+      organizationIds: getEventOrganizationIds(event),
       editLink: event.htmlLink || "",
       startDate: new Date(startRaw),
       endDate: new Date(endRaw),
@@ -203,15 +275,16 @@ function getFilteredEvents() {
   const { start, end } = getSelectedMonthRange();
 
   return state.events.filter((event) => {
-    const searchable = `${event.title} ${event.location} ${event.description}`.toLowerCase();
+    const searchable = getSearchableEventText(event);
     const matchesQuery = !state.query || searchable.includes(state.query);
     const matchesMonth = event.startDate >= start && event.startDate < end;
+    const matchesOrganization = canViewerSeeEvent(event);
     const matchesStatus =
       state.status === "all" ||
       (state.status === "today" && isSameDay(event.startDate, now)) ||
       (state.status === "upcoming" && event.startDate >= startOfDay(now));
 
-    return matchesQuery && matchesMonth && matchesStatus;
+    return matchesQuery && matchesMonth && matchesOrganization && matchesStatus;
   });
 }
 
@@ -228,18 +301,34 @@ function renderAgenda(events) {
   events.forEach((event) => {
     const node = els.eventTemplate.content.firstElementChild.cloneNode(true);
     const pill = node.querySelector(".status-pill");
+    const canSeeDetails = canViewerSeeEventDetails(event);
 
     node.querySelector(".date-month").textContent = formatMonth(event.startDate);
     node.querySelector(".date-day").textContent = formatDay(event.startDate);
     node.querySelector(".date-weekday").textContent = formatWeekday(event.startDate);
-    node.querySelector("h3").textContent = event.title;
+    node.classList.toggle("is-limited", !canSeeDetails);
+    node.querySelector("h3").textContent = canSeeDetails ? event.title : "일정 있음";
     node.querySelector(".event-time").textContent = formatEventTime(event);
-    node.querySelector(".event-location").textContent = event.location ? `장소: ${event.location}` : "장소 미정";
-    node.querySelector(".event-description").textContent = event.description || "상세 설명이 없습니다.";
+    node.querySelector(".event-location").textContent = canSeeDetails
+      ? event.location
+        ? `장소: ${event.location}`
+        : "장소 미정"
+      : "다른 소속 일정";
+    node.querySelector(".event-description").textContent = canSeeDetails
+      ? event.description || "상세 설명이 없습니다."
+      : "상세 내용은 표시되지 않습니다.";
     const editLink = node.querySelector(".event-edit-link");
-    editLink.classList.toggle("is-hidden", !event.editLink);
+    editLink.classList.toggle("is-hidden", !event.editLink || !canSeeDetails);
     editLink.href = event.editLink || "#";
-    bindCertaintyToggle(pill, event);
+    if (canSeeDetails) {
+      bindCertaintyToggle(pill, event);
+    } else {
+      pill.textContent = "비공개";
+      pill.title = "다른 소속 일정입니다.";
+      pill.setAttribute("aria-label", `${formatEventTime(event)} 다른 소속 일정`);
+      pill.className = "status-pill is-private";
+      pill.disabled = true;
+    }
 
     els.agendaView.append(node);
   });
@@ -275,9 +364,15 @@ function renderMonth(events) {
           const item = document.createElement("button");
           item.type = "button";
           item.className = "month-event";
-          item.classList.toggle("is-tentative", event.certainty === "tentative");
-          item.title = event.title;
-          item.textContent = event.certainty === "tentative" ? `미정 · ${event.title}` : event.title;
+          const canSeeDetails = canViewerSeeEventDetails(event);
+          item.classList.toggle("is-tentative", canSeeDetails && event.certainty === "tentative");
+          item.classList.toggle("is-private", !canSeeDetails);
+          item.title = canSeeDetails ? event.title : "다른 소속 일정";
+          item.textContent = canSeeDetails
+            ? event.certainty === "tentative"
+              ? `미정 · ${event.title}`
+              : event.title
+            : "일정 있음";
           item.addEventListener("click", () => openEventModal(event));
           cell.append(item);
         });
@@ -305,6 +400,48 @@ function updateMonthLabel() {
   els.monthLabel.textContent = formatMonthLabel(state.selectedMonth);
 }
 
+function handleLogin(event) {
+  event.preventDefault();
+  const organizationName = els.organizationInput.value.trim();
+  const password = els.passwordInput.value;
+  const organization = [ACCESS_CONFIG.admin, ...state.accessData.organizations].find(
+    (item) => normalizeText(item.name) === normalizeText(organizationName),
+  );
+
+  if (!organization || organization.password !== password) {
+    els.authError.classList.remove("is-hidden");
+    return;
+  }
+
+  state.viewer = {
+    organizationId: organization.id,
+    organizationName: organization.name,
+    role: organization.id === ACCESS_CONFIG.admin.id ? "admin" : "organization",
+  };
+  saveViewerSession();
+  els.passwordInput.value = "";
+  els.organizationInput.value = "";
+  els.authError.classList.add("is-hidden");
+  renderAuthState();
+  loadEvents();
+}
+
+function logout() {
+  state.viewer = null;
+  sessionStorage.removeItem(ACCESS_CONFIG.sessionKey);
+  state.events = [];
+  renderAuthState();
+}
+
+function renderAuthState() {
+  const isLoggedIn = Boolean(state.viewer);
+  const isAdmin = state.viewer?.role === "admin";
+  els.authScreen.classList.toggle("is-hidden", isLoggedIn);
+  els.appShell.classList.toggle("is-locked", !isLoggedIn);
+  els.viewerChip.textContent = isLoggedIn ? `${state.viewer.organizationName} 접속 중` : "";
+  els.adminButton.classList.toggle("is-hidden", !isAdmin);
+}
+
 function openEventModal(event) {
   state.activeEventId = event.id;
   renderEventModal(event);
@@ -313,15 +450,27 @@ function openEventModal(event) {
 }
 
 function renderEventModal(event) {
-  els.modalTitle.textContent = event.title;
+  const canSeeDetails = canViewerSeeEventDetails(event);
+  els.modalTitle.textContent = canSeeDetails ? event.title : "일정 있음";
   els.modalTime.textContent = formatEventTime(event);
-  els.modalLocation.textContent = event.location ? `장소: ${event.location}` : "장소 미정";
-  els.modalDescription.textContent = event.description || "상세 설명이 없습니다.";
-  els.modalStatus.textContent = event.certainty === "tentative" ? "미정" : "확정";
-  els.modalStatus.className = `status-pill ${event.certainty === "tentative" ? "is-tentative" : "is-confirmed"}`;
-  els.modalEditLink.classList.toggle("is-hidden", !event.editLink);
+  els.modalLocation.textContent = canSeeDetails
+    ? event.location
+      ? `장소: ${event.location}`
+      : "장소 미정"
+    : "다른 소속 일정";
+  els.modalDescription.textContent = canSeeDetails
+    ? event.description || "상세 설명이 없습니다."
+    : "상세 내용은 표시되지 않습니다.";
+  els.modalStatus.textContent = canSeeDetails ? (event.certainty === "tentative" ? "미정" : "확정") : "비공개";
+  els.modalStatus.className = canSeeDetails
+    ? `status-pill ${event.certainty === "tentative" ? "is-tentative" : "is-confirmed"}`
+    : "status-pill is-private";
+  els.modalEditLink.classList.toggle("is-hidden", !event.editLink || !canSeeDetails);
   els.modalEditLink.href = event.editLink || "#";
-  bindCertaintyControls(els.eventModal, event);
+  els.modalCertaintyActions.classList.toggle("is-hidden", !canSeeDetails);
+  if (canSeeDetails) {
+    bindCertaintyControls(els.eventModal, event);
+  }
 }
 
 function closeEventModal() {
@@ -422,6 +571,265 @@ function getEventCertainty(event) {
   }
 
   return "confirmed";
+}
+
+function getEventOrganizationIds(event) {
+  const title = event.summary || event.title || "";
+  const details = `${title} ${event.location || ""} ${stripHtml(event.description || "")}`;
+  const explicitOrganizationIds = state.accessData.organizations
+    .filter((organization) => getOrganizationAliases(organization).some((alias) => hasBracketTag(details, alias)))
+    .map((organization) => organization.id);
+
+  const organizationIds =
+    explicitOrganizationIds.length > 0
+      ? explicitOrganizationIds
+      : state.accessData.organizations
+          .filter((organization) =>
+            getOrganizationAliases(organization).some((alias) => hasStandaloneKeyword(details, alias)),
+          )
+          .map((organization) => organization.id);
+
+  if (ACCESS_CONFIG.sharedKeywords.some((keyword) => hasBracketTag(details, keyword) || hasStandaloneKeyword(details, keyword))) {
+    organizationIds.push("all");
+  }
+
+  return [...new Set(organizationIds)];
+}
+
+function canViewerSeeEvent(event) {
+  if (!state.viewer) {
+    return false;
+  }
+
+  return true;
+}
+
+function canViewerSeeEventDetails(event) {
+  if (!state.viewer) {
+    return false;
+  }
+
+  if (state.viewer.role === "admin") {
+    return true;
+  }
+
+  if (event.organizationIds.includes("all") || event.organizationIds.includes(state.viewer.organizationId)) {
+    return true;
+  }
+
+  if (event.organizationIds.length === 0) {
+    return ACCESS_CONFIG.untaggedVisibility === "details";
+  }
+
+  return false;
+}
+
+function getSearchableEventText(event) {
+  if (canViewerSeeEventDetails(event)) {
+    return `${event.title} ${event.location} ${event.description}`.toLowerCase();
+  }
+
+  return "일정 있음 다른 소속 일정".toLowerCase();
+}
+
+function loadViewerSession(accessData) {
+  try {
+    const session = JSON.parse(sessionStorage.getItem(ACCESS_CONFIG.sessionKey) || "null");
+    const accounts = [ACCESS_CONFIG.admin, ...accessData.organizations];
+    const organization = accounts.find((item) => item.id === session?.organizationId);
+    return organization
+      ? {
+          organizationId: organization.id,
+          organizationName: organization.name,
+          role: organization.id === ACCESS_CONFIG.admin.id ? "admin" : "organization",
+        }
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveViewerSession() {
+  sessionStorage.setItem(ACCESS_CONFIG.sessionKey, JSON.stringify(state.viewer));
+}
+
+function loadAccessData() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(ACCESS_CONFIG.storageKey) || "null");
+    if (Array.isArray(saved?.organizations)) {
+      return {
+        organizations: saved.organizations.filter(isValidOrganization).map(sanitizeOrganization),
+      };
+    }
+  } catch {
+    // 기본 소속 설정을 사용합니다.
+  }
+
+  return {
+    organizations: ACCESS_CONFIG.defaultOrganizations.map((organization) => ({ ...organization })),
+  };
+}
+
+function saveAccessData() {
+  localStorage.setItem(ACCESS_CONFIG.storageKey, JSON.stringify(state.accessData));
+}
+
+function isValidOrganization(organization) {
+  return Boolean(organization?.id && organization?.name && organization?.password);
+}
+
+function sanitizeOrganization(organization) {
+  return {
+    id: String(organization.id),
+    name: String(organization.name).trim(),
+    password: String(organization.password),
+    keywords: Array.isArray(organization.keywords) ? organization.keywords.map(String) : [],
+  };
+}
+
+function normalizeText(value) {
+  return String(value || "").trim().toLocaleLowerCase("ko-KR");
+}
+
+function getOrganizationAliases(organization) {
+  return [...new Set([organization.name, ...(organization.keywords || [])].map((value) => String(value).replace(/^\[|\]$/g, "").trim()).filter(Boolean))];
+}
+
+function hasBracketTag(text, keyword) {
+  return normalizeText(text).includes(`[${normalizeText(keyword)}]`);
+}
+
+function hasStandaloneKeyword(text, keyword) {
+  const normalizedText = normalizeText(text);
+  const normalizedKeyword = normalizeText(keyword);
+  if (!normalizedKeyword) {
+    return false;
+  }
+
+  const escaped = normalizedKeyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(^|[^a-z0-9가-힣])${escaped}([^a-z0-9가-힣]|$)`, "i").test(normalizedText);
+}
+
+function openAdminModal() {
+  if (state.viewer?.role !== "admin") {
+    return;
+  }
+
+  resetAdminForm();
+  renderAdminAccounts();
+  els.adminModal.classList.remove("is-hidden");
+  els.adminOrganizationName.focus();
+}
+
+function closeAdminModal() {
+  resetAdminForm();
+  els.adminModal.classList.add("is-hidden");
+}
+
+function renderAdminAccounts() {
+  els.adminAccountList.replaceChildren();
+
+  state.accessData.organizations.forEach((organization) => {
+    const row = document.createElement("div");
+    row.className = "admin-account-row";
+
+    const name = document.createElement("strong");
+    name.textContent = organization.name;
+
+    const password = document.createElement("code");
+    password.textContent = organization.password;
+
+    const actions = document.createElement("div");
+    actions.className = "admin-row-actions";
+
+    const editButton = document.createElement("button");
+    editButton.type = "button";
+    editButton.textContent = "수정";
+    editButton.addEventListener("click", () => editOrganization(organization.id));
+
+    const deleteButton = document.createElement("button");
+    deleteButton.type = "button";
+    deleteButton.className = "danger-button";
+    deleteButton.textContent = "삭제";
+    deleteButton.addEventListener("click", () => deleteOrganization(organization.id));
+
+    actions.append(editButton, deleteButton);
+    row.append(name, password, actions);
+    els.adminAccountList.append(row);
+  });
+}
+
+function saveOrganization(event) {
+  event.preventDefault();
+  const id = els.adminOrganizationId.value;
+  const name = els.adminOrganizationName.value.trim();
+  const password = els.adminOrganizationPassword.value;
+  const duplicate = state.accessData.organizations.find(
+    (organization) => normalizeText(organization.name) === normalizeText(name) && organization.id !== id,
+  );
+
+  if (!name || !password || normalizeText(name) === normalizeText(ACCESS_CONFIG.admin.name) || duplicate) {
+    window.alert(duplicate ? "이미 등록된 소속명입니다." : "사용할 수 있는 소속명과 비밀번호를 입력해 주세요.");
+    return;
+  }
+
+  if (id) {
+    const organization = state.accessData.organizations.find((item) => item.id === id);
+    if (organization) {
+      organization.name = name;
+      organization.password = password;
+    }
+  } else {
+    state.accessData.organizations.push({
+      id: `org-${Date.now()}`,
+      name,
+      password,
+      keywords: [],
+    });
+  }
+
+  persistOrganizationChanges();
+}
+
+function editOrganization(organizationId) {
+  const organization = state.accessData.organizations.find((item) => item.id === organizationId);
+  if (!organization) {
+    return;
+  }
+
+  els.adminOrganizationId.value = organization.id;
+  els.adminOrganizationName.value = organization.name;
+  els.adminOrganizationPassword.value = organization.password;
+  els.adminSaveButton.textContent = "변경 저장";
+  els.adminCancelButton.classList.remove("is-hidden");
+  els.adminOrganizationName.focus();
+}
+
+function deleteOrganization(organizationId) {
+  const organization = state.accessData.organizations.find((item) => item.id === organizationId);
+  if (!organization || !window.confirm(`${organization.name} 소속을 삭제하시겠습니까?`)) {
+    return;
+  }
+
+  state.accessData.organizations = state.accessData.organizations.filter((item) => item.id !== organizationId);
+  persistOrganizationChanges();
+}
+
+function persistOrganizationChanges() {
+  saveAccessData();
+  state.events.forEach((event) => {
+    event.organizationIds = getEventOrganizationIds(event);
+  });
+  resetAdminForm();
+  renderAdminAccounts();
+  render();
+}
+
+function resetAdminForm() {
+  els.adminAccountForm.reset();
+  els.adminOrganizationId.value = "";
+  els.adminSaveButton.textContent = "소속 추가";
+  els.adminCancelButton.classList.add("is-hidden");
 }
 
 function loadCertaintyOverrides() {

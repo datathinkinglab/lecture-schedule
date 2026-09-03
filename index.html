@@ -4,10 +4,33 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>강의 일정 대시보드</title>
-    <link rel="stylesheet" href="./styles.css?v=20260703-7" />
+    <link rel="stylesheet" href="./styles.css?v=20260903-4" />
   </head>
   <body>
-    <div class="app-shell">
+    <section class="auth-screen" id="authScreen" aria-labelledby="authTitle">
+      <form class="auth-card" id="authForm">
+        <p class="eyebrow">Data Thinking Lab</p>
+        <h1 id="authTitle">강의 일정 확인</h1>
+        <p>소속과 비밀번호를 입력해 강의 일정을 확인하세요.</p>
+
+        <label for="organizationInput">소속</label>
+        <input
+          id="organizationInput"
+          type="text"
+          placeholder="소속을 직접 입력하세요"
+          autocomplete="off"
+          required
+        />
+
+        <label for="passwordInput">비밀번호</label>
+        <input id="passwordInput" type="password" autocomplete="current-password" required />
+
+        <p class="auth-error is-hidden" id="authError" role="alert">소속 또는 비밀번호를 확인해 주세요.</p>
+        <button class="auth-submit" type="submit">일정 보기</button>
+      </form>
+    </section>
+
+    <div class="app-shell is-locked" id="appShell">
       <header class="topbar">
         <a class="brand" href="./" aria-label="강의 일정 대시보드 홈">
           <span class="brand-mark" aria-hidden="true">L</span>
@@ -23,6 +46,9 @@
         </nav>
 
         <div class="top-actions">
+          <span class="viewer-chip" id="viewerChip"></span>
+          <button class="text-button is-hidden" type="button" id="adminButton">소속 관리</button>
+          <button class="text-button" type="button" id="logoutButton">로그아웃</button>
           <button class="icon-button" type="button" id="refreshButton" title="새로고침" aria-label="새로고침">
             <span aria-hidden="true">↻</span>
           </button>
@@ -98,7 +124,7 @@
 
             <div class="empty-state is-hidden" id="emptyState">
               <strong>표시할 강의가 없습니다.</strong>
-              <p>검색어나 월 필터를 조정하거나 캘린더 연결 정보를 확인해 주세요.</p>
+              <p>검색어, 월 필터, 또는 로그인한 소속의 일정 태그를 확인해 주세요.</p>
             </div>
           </section>
         </section>
@@ -149,6 +175,35 @@
       </article>
     </div>
 
-    <script src="./app.js?v=20260703-7"></script>
+    <div class="event-modal is-hidden" id="adminModal" role="dialog" aria-modal="true" aria-labelledby="adminModalTitle">
+      <div class="event-modal-backdrop" data-close-admin></div>
+      <article class="event-modal-panel admin-modal-panel">
+        <button class="icon-button modal-close" type="button" id="adminCloseButton" title="닫기" aria-label="닫기">
+          <span aria-hidden="true">×</span>
+        </button>
+        <p class="eyebrow">Administrator</p>
+        <h2 id="adminModalTitle">소속 및 비밀번호 관리</h2>
+        <p class="admin-description">일정 제목에 <strong>[소속명]</strong>을 붙이면 해당 소속에 상세 내용이 표시됩니다.</p>
+
+        <form class="admin-account-form" id="adminAccountForm">
+          <input id="adminOrganizationId" type="hidden" />
+          <div>
+            <label for="adminOrganizationName">소속명</label>
+            <input id="adminOrganizationName" type="text" placeholder="예: 새로운소속" required />
+          </div>
+          <div>
+            <label for="adminOrganizationPassword">비밀번호</label>
+            <input id="adminOrganizationPassword" type="text" placeholder="비밀번호 입력" required />
+          </div>
+          <button class="auth-submit" id="adminSaveButton" type="submit">소속 추가</button>
+          <button class="text-button is-hidden" id="adminCancelButton" type="button">수정 취소</button>
+        </form>
+
+        <div class="admin-account-list" id="adminAccountList"></div>
+        <p class="edit-hint">이 설정은 현재 브라우저에 저장됩니다. 정적 GitHub Pages에서는 여러 기기에 자동 공유되지 않습니다.</p>
+      </article>
+    </div>
+
+    <script src="./app.js?v=20260903-4"></script>
   </body>
 </html>

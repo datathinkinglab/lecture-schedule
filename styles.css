@@ -48,6 +48,165 @@ button {
   padding: 20px 0 48px;
 }
 
+.app-shell.is-locked {
+  display: none;
+}
+
+.auth-screen {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.auth-card {
+  width: min(420px, 100%);
+  padding: 28px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: var(--shadow);
+}
+
+.auth-card h1 {
+  margin: 0 0 10px;
+  font-size: 32px;
+  line-height: 1.2;
+}
+
+.auth-card p {
+  margin: 0 0 20px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.auth-card label {
+  margin-top: 14px;
+}
+
+.auth-submit,
+.text-button {
+  min-height: 40px;
+  border: 0;
+  border-radius: 7px;
+  font-weight: 800;
+}
+
+.auth-submit {
+  width: 100%;
+  margin-top: 18px;
+  color: white;
+  background: var(--accent);
+}
+
+.auth-submit:hover {
+  background: var(--accent-dark);
+}
+
+.auth-error {
+  margin: 12px 0 0 !important;
+  color: var(--rose) !important;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.admin-modal-panel {
+  width: min(680px, 100%);
+  max-height: min(760px, calc(100vh - 36px));
+  overflow-y: auto;
+}
+
+.admin-description {
+  margin: 0 0 18px;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.admin-account-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto auto;
+  gap: 10px;
+  align-items: end;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f7f9f9;
+}
+
+.admin-account-form .auth-submit,
+.admin-account-form .text-button {
+  width: auto;
+  min-height: 44px;
+  margin: 0;
+  padding: 0 14px;
+}
+
+.admin-account-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.admin-account-row {
+  display: grid;
+  grid-template-columns: minmax(100px, 1fr) minmax(120px, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+}
+
+.admin-account-row strong,
+.admin-account-row code {
+  overflow-wrap: anywhere;
+}
+
+.admin-account-row code {
+  color: var(--muted);
+}
+
+.admin-row-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.admin-row-actions button {
+  min-height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 0 10px;
+  color: var(--ink);
+  background: white;
+  font-weight: 700;
+}
+
+.admin-row-actions .danger-button {
+  color: var(--rose);
+}
+
+.viewer-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--accent-dark);
+  background: white;
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.text-button {
+  padding: 0 10px;
+  color: var(--muted);
+  background: white;
+  border: 1px solid var(--line);
+}
+
 .topbar,
 .hero-band,
 .controls-band,
@@ -351,6 +510,10 @@ select {
   background: white;
 }
 
+.event-card.is-limited {
+  background: #fbfcfc;
+}
+
 .date-tile {
   display: grid;
   place-items: center;
@@ -420,6 +583,11 @@ select {
 .status-pill.is-tentative,
 .month-event.is-tentative {
   background: var(--rose);
+}
+
+.status-pill.is-private,
+.month-event.is-private {
+  background: #77838b;
 }
 
 .event-time,
@@ -644,6 +812,32 @@ select {
     padding: 8px 0 28px;
   }
 
+  .auth-screen {
+    padding: 14px;
+  }
+
+  .auth-card {
+    padding: 22px;
+  }
+
+  .auth-card h1 {
+    font-size: 26px;
+  }
+
+  .admin-account-form,
+  .admin-account-row {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-account-form .auth-submit,
+  .admin-account-form .text-button {
+    width: 100%;
+  }
+
+  .admin-row-actions button {
+    flex: 1 1 0;
+  }
+
   .topbar {
     grid-template-columns: 1fr auto;
     gap: 10px;
@@ -682,6 +876,13 @@ select {
 
   .top-actions {
     justify-self: end;
+    flex-wrap: wrap;
+  }
+
+  .viewer-chip {
+    max-width: 140px;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .hero-band {
