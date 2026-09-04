@@ -199,7 +199,7 @@
               autocomplete="off"
               spellcheck="false"
             />
-            <button class="text-button" id="accessSyncButton" type="button">설정 새로고침</button>
+            <button class="text-button" id="accessSyncButton" type="button">GitHub에서 다시 불러오기</button>
           </div>
           <p class="admin-sync-status" id="adminSyncStatus" role="status">공용 설정 연결됨</p>
         </section>
@@ -214,15 +214,15 @@
             <label for="adminOrganizationPassword">비밀번호</label>
             <input id="adminOrganizationPassword" type="password" placeholder="비밀번호 입력" autocomplete="new-password" required />
           </div>
-          <button class="auth-submit" id="adminSaveButton" type="submit">소속 추가</button>
+          <button class="auth-submit" id="adminSaveButton" type="submit">소속 추가 및 동기화</button>
           <button class="text-button is-hidden" id="adminCancelButton" type="button">수정 취소</button>
         </form>
 
         <div class="admin-account-list" id="adminAccountList"></div>
-        <p class="edit-hint">저장된 변경은 GitHub의 공용 설정에 반영됩니다. 다른 기기에서는 페이지를 새로 열거나 새로고침하면 적용됩니다.</p>
+        <p class="edit-hint">소속 추가 또는 변경 저장 버튼을 눌러야 GitHub에 반영됩니다. 다른 기기에서는 페이지를 새로 열거나 새로고침하면 적용됩니다.</p>
       </article>
     </div>
 
-    <script src="./app.js?v=20260904-1"></script>
+    <script src="./app.js?v=20260904-2"></script>
   </body>
 </html>

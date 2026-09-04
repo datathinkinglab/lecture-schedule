@@ -153,7 +153,7 @@ function bindEvents() {
   els.adminCloseButton.addEventListener("click", closeAdminModal);
   els.adminAccountForm.addEventListener("submit", saveOrganization);
   els.adminCancelButton.addEventListener("click", resetAdminForm);
-  els.accessSyncButton.addEventListener("click", () => refreshAccessData({ silent: false }));
+  els.accessSyncButton.addEventListener("click", reloadAccessDataFromAdmin);
   els.adminModal.addEventListener("click", (event) => {
     if (event.target.matches("[data-close-admin]")) {
       closeAdminModal();
@@ -435,6 +435,7 @@ function handleLogin(event) {
     organizationId: organization.id,
     organizationName: organization.name,
     role: organization.id === ACCESS_CONFIG.admin.id ? "admin" : "organization",
+    accessRevision: organization.id === ACCESS_CONFIG.admin.id ? "admin" : state.accessData.updatedAt,
   };
   saveViewerSession();
   els.passwordInput.value = "";
@@ -655,11 +656,14 @@ function loadViewerSession(accessData) {
     const session = JSON.parse(sessionStorage.getItem(ACCESS_CONFIG.sessionKey) || "null");
     const accounts = [ACCESS_CONFIG.admin, ...accessData.organizations];
     const organization = accounts.find((item) => item.id === session?.organizationId);
-    return organization
+    const isAdmin = organization?.id === ACCESS_CONFIG.admin.id;
+    const hasCurrentAccess = isAdmin || session?.accessRevision === accessData.updatedAt;
+    return organization && hasCurrentAccess
       ? {
           organizationId: organization.id,
           organizationName: organization.name,
-          role: organization.id === ACCESS_CONFIG.admin.id ? "admin" : "organization",
+          role: isAdmin ? "admin" : "organization",
+          accessRevision: isAdmin ? "admin" : accessData.updatedAt,
         }
       : null;
   } catch {
@@ -676,6 +680,7 @@ function loadAccessData() {
     const saved = JSON.parse(localStorage.getItem(ACCESS_CONFIG.cacheKey) || "null");
     if (Array.isArray(saved?.organizations)) {
       return {
+        updatedAt: String(saved.updatedAt || "cached"),
         organizations: saved.organizations.filter(isValidOrganization).map(sanitizeOrganization),
       };
     }
@@ -684,6 +689,7 @@ function loadAccessData() {
   }
 
   return {
+    updatedAt: "default",
     organizations: ACCESS_CONFIG.defaultOrganizations.map((organization) => ({ ...organization })),
   };
 }
@@ -694,12 +700,7 @@ async function refreshAccessData({ silent = false } = {}) {
   }
 
   try {
-    const response = await fetch(`${getRawAccessUrl()}?v=${Date.now()}`, { cache: "no-store" });
-    if (!response.ok) {
-      throw new Error(`공용 설정을 불러오지 못했습니다. (${response.status})`);
-    }
-
-    const remoteData = await response.json();
+    const remoteData = await fetchRemoteAccessData();
     if (!Array.isArray(remoteData?.organizations)) {
       throw new Error("공용 설정 파일 형식이 올바르지 않습니다.");
     }
@@ -719,7 +720,9 @@ async function refreshAccessData({ silent = false } = {}) {
 }
 
 function applyAccessData(accessData) {
+  const updatedAt = String(accessData.updatedAt || "unknown");
   state.accessData = {
+    updatedAt,
     organizations: accessData.organizations.filter(isValidOrganization).map(sanitizeOrganization),
   };
 
@@ -732,6 +735,11 @@ function applyAccessData(accessData) {
   state.events.forEach((event) => {
     event.organizationIds = getEventOrganizationIds(event);
   });
+
+  if (state.viewer?.role === "organization" && state.viewer.accessRevision !== updatedAt) {
+    state.viewer = null;
+    sessionStorage.removeItem(ACCESS_CONFIG.sessionKey);
+  }
 
   if (!els.adminModal.classList.contains("is-hidden")) {
     renderAdminAccounts();
@@ -750,6 +758,27 @@ function getRawAccessUrl() {
 function getAccessApiUrl() {
   const { owner, repository, path } = ACCESS_CONFIG.remote;
   return `https://api.github.com/repos/${owner}/${repository}/contents/${path}`;
+}
+
+async function fetchRemoteAccessData() {
+  const apiResponse = await fetch(
+    `${getAccessApiUrl()}?ref=${encodeURIComponent(ACCESS_CONFIG.remote.branch)}&v=${Date.now()}`,
+    {
+      headers: { Accept: "application/vnd.github+json" },
+      cache: "no-store",
+    },
+  );
+
+  if (apiResponse.ok) {
+    const file = await apiResponse.json();
+    return JSON.parse(decodeBase64Utf8(file.content));
+  }
+
+  const rawResponse = await fetch(`${getRawAccessUrl()}?v=${Date.now()}`, { cache: "no-store" });
+  if (!rawResponse.ok) {
+    throw new Error(`공용 설정을 불러오지 못했습니다. (${rawResponse.status})`);
+  }
+  return rawResponse.json();
 }
 
 async function commitAccessData(organizations, message) {
@@ -809,6 +838,12 @@ function encodeBase64Utf8(value) {
     binary += String.fromCharCode(byte);
   });
   return btoa(binary);
+}
+
+function decodeBase64Utf8(value) {
+  const binary = atob(String(value).replace(/\s/g, ""));
+  const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
 }
 
 function getGithubApiError(data, status) {
@@ -873,6 +908,20 @@ function openAdminModal() {
   );
   els.adminModal.classList.remove("is-hidden");
   els.adminOrganizationName.focus();
+}
+
+async function reloadAccessDataFromAdmin() {
+  const hasUnsavedInput = Boolean(
+    els.adminOrganizationId.value ||
+      els.adminOrganizationName.value.trim() ||
+      els.adminOrganizationPassword.value,
+  );
+  if (hasUnsavedInput && !window.confirm("입력 중인 내용은 사라집니다. GitHub의 최신 설정을 다시 불러올까요?")) {
+    return;
+  }
+
+  resetAdminForm();
+  await refreshAccessData({ silent: false });
 }
 
 function closeAdminModal() {
@@ -959,7 +1008,7 @@ function editOrganization(organizationId) {
   els.adminOrganizationPassword.value = "";
   els.adminOrganizationPassword.placeholder = "변경할 때만 입력";
   els.adminOrganizationPassword.required = false;
-  els.adminSaveButton.textContent = "변경 저장";
+  els.adminSaveButton.textContent = "변경 저장 및 동기화";
   els.adminCancelButton.classList.remove("is-hidden");
   els.adminOrganizationName.focus();
 }
@@ -979,11 +1028,16 @@ async function persistOrganizationChanges(organizations, message) {
   setAdminSyncStatus("GitHub 공용 설정에 저장하는 중입니다.", "loading");
 
   try {
-    await commitAccessData(organizations, message);
+    const result = await commitAccessData(organizations, message);
     resetAdminForm();
     renderAdminAccounts();
     render();
-    setAdminSyncStatus(`저장 및 동기화 완료 · ${formatTime(state.accessLastSyncedAt)}`, "success");
+    els.githubTokenInput.value = "";
+    const shortSha = result?.commit?.sha?.slice(0, 7);
+    setAdminSyncStatus(
+      `GitHub 저장 완료${shortSha ? ` (${shortSha})` : ""} · ${formatTime(state.accessLastSyncedAt)}`,
+      "success",
+    );
   } catch (error) {
     setAdminSyncStatus(error.message, "error");
   } finally {
@@ -996,7 +1050,7 @@ function resetAdminForm() {
   els.adminOrganizationId.value = "";
   els.adminOrganizationPassword.placeholder = "비밀번호 입력";
   els.adminOrganizationPassword.required = true;
-  els.adminSaveButton.textContent = "소속 추가";
+  els.adminSaveButton.textContent = "소속 추가 및 동기화";
   els.adminCancelButton.classList.add("is-hidden");
 }
 
