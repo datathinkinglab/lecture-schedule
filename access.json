@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-09-04T06:57:14.261Z",
+  "updatedAt": "2026-09-04T06:57:33.381Z",
   "organizations": [
     {
       "id": "exc",
@@ -20,6 +20,12 @@
         "CARET",
         "Caret"
       ]
+    },
+    {
+      "id": "org-1788505052870",
+      "name": "DTL",
+      "password": "dtl2026",
+      "keywords": []
     }
   ]
 }
