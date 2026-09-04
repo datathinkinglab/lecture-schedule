@@ -7,7 +7,13 @@ const CALENDAR_CONFIG = {
 
 const ACCESS_CONFIG = {
   sessionKey: "lectureDashboardViewer",
-  storageKey: "lectureDashboardAccessSettings",
+  cacheKey: "lectureDashboardAccessCache",
+  remote: {
+    owner: "datathinkinglab",
+    repository: "lecture-schedule",
+    branch: "main",
+    path: "access.json",
+  },
   admin: {
     id: "admin",
     name: "관리자",
@@ -70,9 +76,10 @@ const state = {
   selectedMonth: getMonthKey(new Date()),
   certaintyOverrides: loadCertaintyOverrides(),
   accessData: initialAccessData,
-  viewer: loadViewerSession(initialAccessData),
+  viewer: null,
   activeEventId: null,
   lastSyncedAt: null,
+  accessLastSyncedAt: null,
 };
 
 const els = {
@@ -119,14 +126,19 @@ const els = {
   adminSaveButton: document.querySelector("#adminSaveButton"),
   adminCancelButton: document.querySelector("#adminCancelButton"),
   adminAccountList: document.querySelector("#adminAccountList"),
+  githubTokenInput: document.querySelector("#githubTokenInput"),
+  accessSyncButton: document.querySelector("#accessSyncButton"),
+  adminSyncStatus: document.querySelector("#adminSyncStatus"),
 };
 
 init();
 
-function init() {
+async function init() {
   hydrateFromUrl();
   updateMonthLabel();
   bindEvents();
+  await refreshAccessData({ silent: true });
+  state.viewer = loadViewerSession(state.accessData);
   renderAuthState();
   if (state.viewer) {
     loadEvents();
@@ -141,6 +153,7 @@ function bindEvents() {
   els.adminCloseButton.addEventListener("click", closeAdminModal);
   els.adminAccountForm.addEventListener("submit", saveOrganization);
   els.adminCancelButton.addEventListener("click", resetAdminForm);
+  els.accessSyncButton.addEventListener("click", () => refreshAccessData({ silent: false }));
   els.adminModal.addEventListener("click", (event) => {
     if (event.target.matches("[data-close-admin]")) {
       closeAdminModal();
@@ -172,7 +185,7 @@ function bindEvents() {
 
   els.prevMonthButton.addEventListener("click", () => changeMonth(-1));
   els.nextMonthButton.addEventListener("click", () => changeMonth(1));
-  els.refreshButton.addEventListener("click", loadEvents);
+  els.refreshButton.addEventListener("click", refreshDashboard);
   els.addScheduleButton.addEventListener("click", openGoogleCalendarCreate);
   els.modalCloseButton.addEventListener("click", closeEventModal);
   els.eventModal.addEventListener("click", (event) => {
@@ -209,6 +222,11 @@ async function loadEvents() {
   }
 
   render();
+}
+
+async function refreshDashboard() {
+  await refreshAccessData({ silent: true });
+  await loadEvents();
 }
 
 async function fetchGoogleCalendarEvents() {
@@ -655,7 +673,7 @@ function saveViewerSession() {
 
 function loadAccessData() {
   try {
-    const saved = JSON.parse(localStorage.getItem(ACCESS_CONFIG.storageKey) || "null");
+    const saved = JSON.parse(localStorage.getItem(ACCESS_CONFIG.cacheKey) || "null");
     if (Array.isArray(saved?.organizations)) {
       return {
         organizations: saved.organizations.filter(isValidOrganization).map(sanitizeOrganization),
@@ -670,8 +688,140 @@ function loadAccessData() {
   };
 }
 
-function saveAccessData() {
-  localStorage.setItem(ACCESS_CONFIG.storageKey, JSON.stringify(state.accessData));
+async function refreshAccessData({ silent = false } = {}) {
+  if (!silent) {
+    setAdminSyncStatus("공용 소속 설정을 불러오는 중입니다.", "loading");
+  }
+
+  try {
+    const response = await fetch(`${getRawAccessUrl()}?v=${Date.now()}`, { cache: "no-store" });
+    if (!response.ok) {
+      throw new Error(`공용 설정을 불러오지 못했습니다. (${response.status})`);
+    }
+
+    const remoteData = await response.json();
+    if (!Array.isArray(remoteData?.organizations)) {
+      throw new Error("공용 설정 파일 형식이 올바르지 않습니다.");
+    }
+
+    applyAccessData(remoteData);
+    state.accessLastSyncedAt = new Date();
+    if (!silent) {
+      setAdminSyncStatus(`동기화 완료 · ${formatTime(state.accessLastSyncedAt)}`, "success");
+    }
+    return true;
+  } catch (error) {
+    if (!silent) {
+      setAdminSyncStatus(error.message, "error");
+    }
+    return false;
+  }
+}
+
+function applyAccessData(accessData) {
+  state.accessData = {
+    organizations: accessData.organizations.filter(isValidOrganization).map(sanitizeOrganization),
+  };
+
+  try {
+    localStorage.setItem(ACCESS_CONFIG.cacheKey, JSON.stringify(state.accessData));
+  } catch {
+    // 공용 설정은 메모리에 적용되므로 캐시 저장 실패는 무시합니다.
+  }
+
+  state.events.forEach((event) => {
+    event.organizationIds = getEventOrganizationIds(event);
+  });
+
+  if (!els.adminModal.classList.contains("is-hidden")) {
+    renderAdminAccounts();
+  }
+
+  if (state.viewer) {
+    render();
+  }
+}
+
+function getRawAccessUrl() {
+  const { owner, repository, branch, path } = ACCESS_CONFIG.remote;
+  return `https://raw.githubusercontent.com/${owner}/${repository}/${branch}/${path}`;
+}
+
+function getAccessApiUrl() {
+  const { owner, repository, path } = ACCESS_CONFIG.remote;
+  return `https://api.github.com/repos/${owner}/${repository}/contents/${path}`;
+}
+
+async function commitAccessData(organizations, message) {
+  const token = els.githubTokenInput.value.trim();
+  if (!token) {
+    throw new Error("GitHub 동기화 토큰을 입력해 주세요.");
+  }
+
+  const headers = {
+    Accept: "application/vnd.github+json",
+    Authorization: `Bearer ${token}`,
+    "X-GitHub-Api-Version": "2022-11-28",
+  };
+  const currentResponse = await fetch(`${getAccessApiUrl()}?ref=${encodeURIComponent(ACCESS_CONFIG.remote.branch)}`, {
+    headers,
+    cache: "no-store",
+  });
+  const currentData = await currentResponse.json();
+
+  if (!currentResponse.ok) {
+    throw new Error(getGithubApiError(currentData, currentResponse.status));
+  }
+
+  const nextData = {
+    version: 1,
+    updatedAt: new Date().toISOString(),
+    organizations: organizations.map(sanitizeOrganization),
+  };
+  const response = await fetch(getAccessApiUrl(), {
+    method: "PUT",
+    headers: {
+      ...headers,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      message,
+      branch: ACCESS_CONFIG.remote.branch,
+      sha: currentData.sha,
+      content: encodeBase64Utf8(`${JSON.stringify(nextData, null, 2)}\n`),
+    }),
+  });
+  const result = await response.json();
+
+  if (!response.ok) {
+    throw new Error(getGithubApiError(result, response.status));
+  }
+
+  applyAccessData(nextData);
+  state.accessLastSyncedAt = new Date();
+  return result;
+}
+
+function encodeBase64Utf8(value) {
+  const bytes = new TextEncoder().encode(value);
+  let binary = "";
+  bytes.forEach((byte) => {
+    binary += String.fromCharCode(byte);
+  });
+  return btoa(binary);
+}
+
+function getGithubApiError(data, status) {
+  if (status === 401) {
+    return "GitHub 토큰이 올바르지 않거나 만료되었습니다.";
+  }
+  if (status === 403) {
+    return "토큰에 이 저장소의 Contents 쓰기 권한이 없습니다.";
+  }
+  if (status === 409 || status === 422) {
+    return "다른 관리자가 먼저 수정했습니다. 새로고침 후 다시 시도해 주세요.";
+  }
+  return data?.message ? `GitHub 저장 실패: ${data.message}` : `GitHub 저장에 실패했습니다. (${status})`;
 }
 
 function isValidOrganization(organization) {
@@ -717,12 +867,17 @@ function openAdminModal() {
 
   resetAdminForm();
   renderAdminAccounts();
+  setAdminSyncStatus(
+    state.accessLastSyncedAt ? `공용 설정 연결됨 · ${formatTime(state.accessLastSyncedAt)}` : "공용 설정 캐시 사용 중",
+    state.accessLastSyncedAt ? "success" : "",
+  );
   els.adminModal.classList.remove("is-hidden");
   els.adminOrganizationName.focus();
 }
 
 function closeAdminModal() {
   resetAdminForm();
+  els.githubTokenInput.value = "";
   els.adminModal.classList.add("is-hidden");
 }
 
@@ -737,7 +892,7 @@ function renderAdminAccounts() {
     name.textContent = organization.name;
 
     const password = document.createElement("code");
-    password.textContent = organization.password;
+    password.textContent = "비밀번호 설정됨";
 
     const actions = document.createElement("div");
     actions.className = "admin-row-actions";
@@ -759,28 +914,30 @@ function renderAdminAccounts() {
   });
 }
 
-function saveOrganization(event) {
+async function saveOrganization(event) {
   event.preventDefault();
   const id = els.adminOrganizationId.value;
   const name = els.adminOrganizationName.value.trim();
   const password = els.adminOrganizationPassword.value;
+  const currentOrganization = state.accessData.organizations.find((item) => item.id === id);
   const duplicate = state.accessData.organizations.find(
     (organization) => normalizeText(organization.name) === normalizeText(name) && organization.id !== id,
   );
 
-  if (!name || !password || normalizeText(name) === normalizeText(ACCESS_CONFIG.admin.name) || duplicate) {
+  if (!name || (!id && !password) || normalizeText(name) === normalizeText(ACCESS_CONFIG.admin.name) || duplicate) {
     window.alert(duplicate ? "이미 등록된 소속명입니다." : "사용할 수 있는 소속명과 비밀번호를 입력해 주세요.");
     return;
   }
 
+  const nextOrganizations = state.accessData.organizations.map((organization) => ({ ...organization }));
   if (id) {
-    const organization = state.accessData.organizations.find((item) => item.id === id);
+    const organization = nextOrganizations.find((item) => item.id === id);
     if (organization) {
       organization.name = name;
-      organization.password = password;
+      organization.password = password || currentOrganization.password;
     }
   } else {
-    state.accessData.organizations.push({
+    nextOrganizations.push({
       id: `org-${Date.now()}`,
       name,
       password,
@@ -788,7 +945,7 @@ function saveOrganization(event) {
     });
   }
 
-  persistOrganizationChanges();
+  await persistOrganizationChanges(nextOrganizations, id ? `${name} 소속 정보 수정` : `${name} 소속 추가`);
 }
 
 function editOrganization(organizationId) {
@@ -799,37 +956,53 @@ function editOrganization(organizationId) {
 
   els.adminOrganizationId.value = organization.id;
   els.adminOrganizationName.value = organization.name;
-  els.adminOrganizationPassword.value = organization.password;
+  els.adminOrganizationPassword.value = "";
+  els.adminOrganizationPassword.placeholder = "변경할 때만 입력";
+  els.adminOrganizationPassword.required = false;
   els.adminSaveButton.textContent = "변경 저장";
   els.adminCancelButton.classList.remove("is-hidden");
   els.adminOrganizationName.focus();
 }
 
-function deleteOrganization(organizationId) {
+async function deleteOrganization(organizationId) {
   const organization = state.accessData.organizations.find((item) => item.id === organizationId);
   if (!organization || !window.confirm(`${organization.name} 소속을 삭제하시겠습니까?`)) {
     return;
   }
 
-  state.accessData.organizations = state.accessData.organizations.filter((item) => item.id !== organizationId);
-  persistOrganizationChanges();
+  const nextOrganizations = state.accessData.organizations.filter((item) => item.id !== organizationId);
+  await persistOrganizationChanges(nextOrganizations, `${organization.name} 소속 삭제`);
 }
 
-function persistOrganizationChanges() {
-  saveAccessData();
-  state.events.forEach((event) => {
-    event.organizationIds = getEventOrganizationIds(event);
-  });
-  resetAdminForm();
-  renderAdminAccounts();
-  render();
+async function persistOrganizationChanges(organizations, message) {
+  els.adminSaveButton.disabled = true;
+  setAdminSyncStatus("GitHub 공용 설정에 저장하는 중입니다.", "loading");
+
+  try {
+    await commitAccessData(organizations, message);
+    resetAdminForm();
+    renderAdminAccounts();
+    render();
+    setAdminSyncStatus(`저장 및 동기화 완료 · ${formatTime(state.accessLastSyncedAt)}`, "success");
+  } catch (error) {
+    setAdminSyncStatus(error.message, "error");
+  } finally {
+    els.adminSaveButton.disabled = false;
+  }
 }
 
 function resetAdminForm() {
   els.adminAccountForm.reset();
   els.adminOrganizationId.value = "";
+  els.adminOrganizationPassword.placeholder = "비밀번호 입력";
+  els.adminOrganizationPassword.required = true;
   els.adminSaveButton.textContent = "소속 추가";
   els.adminCancelButton.classList.add("is-hidden");
+}
+
+function setAdminSyncStatus(message, type = "") {
+  els.adminSyncStatus.textContent = message;
+  els.adminSyncStatus.className = `admin-sync-status${type ? ` is-${type}` : ""}`;
 }
 
 function loadCertaintyOverrides() {

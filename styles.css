@@ -122,6 +122,55 @@ button {
   line-height: 1.55;
 }
 
+.admin-sync-box {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 16px;
+  border: 1px solid #c8ddd9;
+  border-radius: 8px;
+  background: #f2f8f7;
+}
+
+.admin-sync-box strong {
+  display: block;
+}
+
+.admin-sync-box p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.admin-sync-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.admin-sync-controls .text-button {
+  min-height: 44px;
+  padding: 0 14px;
+}
+
+.admin-sync-status {
+  min-height: 20px;
+  font-weight: 700;
+}
+
+.admin-sync-status.is-success {
+  color: var(--accent-dark);
+}
+
+.admin-sync-status.is-error {
+  color: var(--rose);
+}
+
+.admin-sync-status.is-loading {
+  color: #6f541e;
+}
+
 .admin-account-form {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto auto;
@@ -826,6 +875,10 @@ select {
 
   .admin-account-form,
   .admin-account-row {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-sync-controls {
     grid-template-columns: 1fr;
   }
 

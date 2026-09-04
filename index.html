@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>강의 일정 대시보드</title>
-    <link rel="stylesheet" href="./styles.css?v=20260903-4" />
+    <link rel="stylesheet" href="./styles.css?v=20260904-1" />
   </head>
   <body>
     <section class="auth-screen" id="authScreen" aria-labelledby="authTitle">
@@ -185,6 +185,25 @@
         <h2 id="adminModalTitle">소속 및 비밀번호 관리</h2>
         <p class="admin-description">일정 제목에 <strong>[소속명]</strong>을 붙이면 해당 소속에 상세 내용이 표시됩니다.</p>
 
+        <section class="admin-sync-box" aria-labelledby="adminSyncTitle">
+          <div>
+            <strong id="adminSyncTitle">GitHub 공용 동기화</strong>
+            <p>저장할 때만 저장소 쓰기 토큰을 사용하며 브라우저에는 보관하지 않습니다.</p>
+          </div>
+          <label for="githubTokenInput">GitHub 토큰</label>
+          <div class="admin-sync-controls">
+            <input
+              id="githubTokenInput"
+              type="password"
+              placeholder="github_pat_..."
+              autocomplete="off"
+              spellcheck="false"
+            />
+            <button class="text-button" id="accessSyncButton" type="button">설정 새로고침</button>
+          </div>
+          <p class="admin-sync-status" id="adminSyncStatus" role="status">공용 설정 연결됨</p>
+        </section>
+
         <form class="admin-account-form" id="adminAccountForm">
           <input id="adminOrganizationId" type="hidden" />
           <div>
@@ -193,17 +212,17 @@
           </div>
           <div>
             <label for="adminOrganizationPassword">비밀번호</label>
-            <input id="adminOrganizationPassword" type="text" placeholder="비밀번호 입력" required />
+            <input id="adminOrganizationPassword" type="password" placeholder="비밀번호 입력" autocomplete="new-password" required />
           </div>
           <button class="auth-submit" id="adminSaveButton" type="submit">소속 추가</button>
           <button class="text-button is-hidden" id="adminCancelButton" type="button">수정 취소</button>
         </form>
 
         <div class="admin-account-list" id="adminAccountList"></div>
-        <p class="edit-hint">이 설정은 현재 브라우저에 저장됩니다. 정적 GitHub Pages에서는 여러 기기에 자동 공유되지 않습니다.</p>
+        <p class="edit-hint">저장된 변경은 GitHub의 공용 설정에 반영됩니다. 다른 기기에서는 페이지를 새로 열거나 새로고침하면 적용됩니다.</p>
       </article>
     </div>
 
-    <script src="./app.js?v=20260903-4"></script>
+    <script src="./app.js?v=20260904-1"></script>
   </body>
 </html>
