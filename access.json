@@ -1,18 +1,25 @@
 {
   "version": 1,
-  "updatedAt": "2026-09-04T00:00:00.000Z",
+  "updatedAt": "2026-09-04T06:57:14.261Z",
   "organizations": [
     {
       "id": "exc",
       "name": "EXC",
       "password": "exc2026",
-      "keywords": ["EXC", "[EXC]"]
+      "keywords": [
+        "EXC",
+        "[EXC]"
+      ]
     },
     {
       "id": "caret",
       "name": "캐럿",
-      "password": "caret2026",
-      "keywords": ["캐럿", "CARET", "Caret"]
+      "password": "ca2026",
+      "keywords": [
+        "캐럿",
+        "CARET",
+        "Caret"
+      ]
     }
   ]
 }
