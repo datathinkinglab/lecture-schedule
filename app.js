@@ -134,6 +134,7 @@ const els = {
 init();
 
 async function init() {
+  resetSearch();
   hydrateFromUrl();
   updateMonthLabel();
   bindEvents();
@@ -178,7 +179,22 @@ function bindEvents() {
     });
   });
 
+  // Keep password managers from treating schedule search as a login field.
+  document.querySelector("#scheduleSearchForm").addEventListener("submit", (event) => event.preventDefault());
+  els.searchInput.addEventListener("pointerdown", enableSearch);
+  els.searchInput.addEventListener("keydown", (event) => {
+    if (event.key !== "Tab" && event.key !== "Escape") enableSearch();
+  });
+  window.addEventListener("pageshow", () => {
+    resetSearch();
+    if (state.viewer) render();
+  });
+
   els.searchInput.addEventListener("input", (event) => {
+    if (els.searchInput.readOnly) {
+      els.searchInput.value = "";
+      return;
+    }
     state.query = event.target.value.trim().toLowerCase();
     render();
   });
@@ -418,6 +434,16 @@ function updateMonthLabel() {
   els.monthLabel.textContent = formatMonthLabel(state.selectedMonth);
 }
 
+function resetSearch() {
+  state.query = "";
+  els.searchInput.value = "";
+  els.searchInput.readOnly = true;
+}
+
+function enableSearch() {
+  els.searchInput.readOnly = false;
+}
+
 function handleLogin(event) {
   event.preventDefault();
   const organizationName = els.organizationInput.value.trim();
@@ -437,6 +463,7 @@ function handleLogin(event) {
     role: organization.id === ACCESS_CONFIG.admin.id ? "admin" : "organization",
     accessRevision: organization.id === ACCESS_CONFIG.admin.id ? "admin" : state.accessData.updatedAt,
   };
+  resetSearch();
   saveViewerSession();
   els.passwordInput.value = "";
   els.organizationInput.value = "";
@@ -446,6 +473,7 @@ function handleLogin(event) {
 }
 
 function logout() {
+  resetSearch();
   state.viewer = null;
   sessionStorage.removeItem(ACCESS_CONFIG.sessionKey);
   state.events = [];

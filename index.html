@@ -8,7 +8,7 @@
   </head>
   <body>
     <section class="auth-screen" id="authScreen" aria-labelledby="authTitle">
-      <form class="auth-card" id="authForm">
+      <form class="auth-card" id="authForm" autocomplete="off">
         <p class="eyebrow">Data Thinking Lab</p>
         <h1 id="authTitle">강의 일정 확인</h1>
         <p>소속과 비밀번호를 입력해 강의 일정을 확인하세요.</p>
@@ -16,6 +16,7 @@
         <label for="organizationInput">소속</label>
         <input
           id="organizationInput"
+          name="username"
           type="text"
           placeholder="소속을 직접 입력하세요"
           autocomplete="off"
@@ -23,7 +24,7 @@
         />
 
         <label for="passwordInput">비밀번호</label>
-        <input id="passwordInput" type="password" autocomplete="current-password" required />
+        <input id="passwordInput" name="password" type="password" autocomplete="current-password" required />
 
         <p class="auth-error is-hidden" id="authError" role="alert">소속 또는 비밀번호를 확인해 주세요.</p>
         <button class="auth-submit" type="submit">일정 보기</button>
@@ -79,10 +80,10 @@
         </section>
 
         <section class="controls-band" aria-label="일정 필터">
-          <div class="search-wrap">
+          <form class="search-wrap" id="scheduleSearchForm" role="search" autocomplete="off">
             <label for="searchInput">검색</label>
-            <input id="searchInput" type="search" placeholder="강의명, 장소, 설명 검색" autocomplete="off" />
-          </div>
+            <input id="searchInput" name="schedule-query" type="search" placeholder="강의명, 장소, 설명 검색" autocomplete="off" readonly />
+          </form>
 
           <div class="field">
             <span class="field-label">월</span>
@@ -223,6 +224,6 @@
       </article>
     </div>
 
-    <script src="./app.js?v=20260904-2"></script>
+    <script src="./app.js?v=20261002-1"></script>
   </body>
 </html>
