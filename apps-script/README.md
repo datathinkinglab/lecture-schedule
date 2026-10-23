@@ -1,0 +1,29 @@
+# 일정 등록 서버 (Google Apps Script) 설정
+
+사이트의 `일정 등록` 폼이 이 웹앱을 호출하면 Google 캘린더에 일정이 추가됩니다. 캘린더를 구독 중인 모든 기기에 자동 동기화됩니다.
+서버는 `access.json`의 소속/비밀번호로 요청자를 다시 검증하므로, 사이트 로그인 없이 직접 호출해도 등록되지 않습니다.
+
+## 1. 배포
+
+1. https://script.google.com 에서 **새 프로젝트**를 만들고 `Code.gs` 내용을 붙여넣습니다. (캘린더 소유자 계정으로 진행)
+2. **프로젝트 설정 > 스크립트 속성**에 아래 3개를 추가합니다.
+   - `CALENDAR_ID`: `app.js`의 `CALENDAR_CONFIG.calendarId` 값
+   - `ADMIN_PASSWORD`: 관리자 비밀번호
+   - `ACCESS_URL`: `https://raw.githubusercontent.com/datathinkinglab/lecture-schedule/main/access.json`
+3. **배포 > 새 배포 > 유형: 웹 앱**
+   - 실행 사용자: **나**
+   - 액세스 권한: **모든 사용자**
+4. 처음 배포할 때 캘린더 접근 권한을 승인합니다.
+5. 발급된 웹 앱 URL(`https://script.google.com/macros/s/.../exec`)을 `app.js` 상단 `SCHEDULE_API.url`에 넣습니다.
+
+코드를 수정한 뒤에는 **배포 관리 > 편집 > 새 버전**으로 다시 배포해야 반영됩니다.
+
+## 2. 사용자 동기화
+
+등록된 일정은 공용 캘린더에 들어갑니다. 개인 구글 캘린더에서 보려면 캘린더 설정의 `공개 URL`/`iCal 주소`로 구독하면 됩니다.
+
+## 참고
+
+- 일정 제목에는 `[소속]` 태그가 자동으로 붙어 기존 소속별 열람 규칙이 그대로 적용됩니다.
+- 소속 사용자는 자기 소속 또는 `공통`으로만 등록할 수 있고, 관리자는 모든 소속/태그 없음으로 등록할 수 있습니다.
+- `app.js`의 `SCHEDULE_API.url`이 비어 있으면 등록 시 안내 메시지가 표시됩니다.

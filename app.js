@@ -5,6 +5,11 @@ const CALENDAR_CONFIG = {
   refreshMinutes: 10,
 };
 
+// 일정 등록용 Google Apps Script 웹앱 URL (apps-script/README.md 참고). 비어 있으면 등록 버튼이 안내 메시지를 표시합니다.
+const SCHEDULE_API = {
+  url: "",
+};
+
 const ACCESS_CONFIG = {
   sessionKey: "lectureDashboardViewer",
   cacheKey: "lectureDashboardAccessCache",
@@ -77,6 +82,7 @@ const state = {
   certaintyOverrides: loadCertaintyOverrides(),
   accessData: initialAccessData,
   viewer: null,
+  viewerPassword: "",
   activeEventId: null,
   lastSyncedAt: null,
   accessLastSyncedAt: null,
@@ -129,6 +135,19 @@ const els = {
   githubTokenInput: document.querySelector("#githubTokenInput"),
   accessSyncButton: document.querySelector("#accessSyncButton"),
   adminSyncStatus: document.querySelector("#adminSyncStatus"),
+  createModal: document.querySelector("#createModal"),
+  createCloseButton: document.querySelector("#createCloseButton"),
+  createForm: document.querySelector("#createForm"),
+  createTitle: document.querySelector("#createTitle"),
+  createOrg: document.querySelector("#createOrg"),
+  createDate: document.querySelector("#createDate"),
+  createStart: document.querySelector("#createStart"),
+  createEnd: document.querySelector("#createEnd"),
+  createLocation: document.querySelector("#createLocation"),
+  createDescription: document.querySelector("#createDescription"),
+  createTentative: document.querySelector("#createTentative"),
+  createError: document.querySelector("#createError"),
+  createSubmit: document.querySelector("#createSubmit"),
 };
 
 init();
@@ -202,7 +221,14 @@ function bindEvents() {
   els.prevMonthButton.addEventListener("click", () => changeMonth(-1));
   els.nextMonthButton.addEventListener("click", () => changeMonth(1));
   els.refreshButton.addEventListener("click", refreshDashboard);
-  els.addScheduleButton.addEventListener("click", openGoogleCalendarCreate);
+  els.addScheduleButton.addEventListener("click", openCreateModal);
+  els.createCloseButton.addEventListener("click", closeCreateModal);
+  els.createForm.addEventListener("submit", submitSchedule);
+  els.createModal.addEventListener("click", (event) => {
+    if (event.target.matches("[data-close-create]")) {
+      closeCreateModal();
+    }
+  });
   els.modalCloseButton.addEventListener("click", closeEventModal);
   els.eventModal.addEventListener("click", (event) => {
     if (event.target.matches("[data-close-modal]")) {
@@ -211,7 +237,9 @@ function bindEvents() {
   });
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
-      if (!els.adminModal.classList.contains("is-hidden")) {
+      if (!els.createModal.classList.contains("is-hidden")) {
+        closeCreateModal();
+      } else if (!els.adminModal.classList.contains("is-hidden")) {
         closeAdminModal();
       } else if (!els.eventModal.classList.contains("is-hidden")) {
         closeEventModal();
@@ -298,7 +326,6 @@ function render() {
 
   els.agendaView.classList.toggle("is-hidden", state.view !== "agenda");
   els.monthView.classList.toggle("is-hidden", state.view !== "month");
-  els.addScheduleButton.classList.toggle("is-hidden", state.view !== "month");
   els.emptyState.classList.toggle("is-hidden", filtered.length > 0);
   els.viewTitle.textContent = `${formatMonthLabel(state.selectedMonth)} 강의`;
   els.resultCount.textContent = `${filtered.length}개 일정`;
@@ -465,6 +492,7 @@ function handleLogin(event) {
   };
   resetSearch();
   saveViewerSession();
+  state.viewerPassword = password;
   els.passwordInput.value = "";
   els.organizationInput.value = "";
   els.authError.classList.add("is-hidden");
@@ -475,6 +503,7 @@ function handleLogin(event) {
 function logout() {
   resetSearch();
   state.viewer = null;
+  state.viewerPassword = "";
   sessionStorage.removeItem(ACCESS_CONFIG.sessionKey);
   state.events = [];
   renderAuthState();
@@ -564,40 +593,109 @@ function updateEventCertainty(eventId, certainty) {
   }
 }
 
-function openGoogleCalendarCreate() {
-  const date = getDefaultScheduleDate();
-  const nextDate = new Date(date);
-  nextDate.setHours(date.getHours() + 1);
-  const params = new URLSearchParams({
-    action: "TEMPLATE",
-    text: "강의 일정",
-    dates: `${formatGoogleCalendarDate(date)}/${formatGoogleCalendarDate(nextDate)}`,
-    ctz: CALENDAR_CONFIG.timezone,
-  });
+function openCreateModal() {
+  const isAdmin = state.viewer?.role === "admin";
+  const options = isAdmin
+    ? [...state.accessData.organizations.map((item) => item.name), "공통", ""]
+    : [state.viewer.organizationName, "공통"];
 
-  window.open(`https://calendar.google.com/calendar/render?${params}`, "_blank", "noopener");
+  els.createOrg.replaceChildren(
+    ...options.map((name) => {
+      const option = document.createElement("option");
+      option.value = name;
+      option.textContent = name || "태그 없음 (관리자만 열람)";
+      return option;
+    }),
+  );
+  els.createForm.reset();
+  els.createDate.value = formatDateInput(getDefaultScheduleDate());
+  els.createStart.value = "10:00";
+  els.createEnd.value = "12:00";
+  els.createError.classList.add("is-hidden");
+  els.createModal.classList.remove("is-hidden");
+  els.createTitle.focus();
+}
+
+function closeCreateModal() {
+  els.createModal.classList.add("is-hidden");
+}
+
+function showCreateError(message) {
+  els.createError.textContent = message;
+  els.createError.classList.remove("is-hidden");
+}
+
+async function submitSchedule(event) {
+  event.preventDefault();
+  els.createError.classList.add("is-hidden");
+
+  if (!SCHEDULE_API.url) {
+    showCreateError("일정 등록 서버가 아직 설정되지 않았습니다. 관리자에게 문의해 주세요.");
+    return;
+  }
+  if (els.createEnd.value <= els.createStart.value) {
+    showCreateError("종료 시간은 시작 시간보다 늦어야 합니다.");
+    return;
+  }
+
+  if (!state.viewerPassword) {
+    state.viewerPassword = window.prompt("일정을 등록하려면 로그인 비밀번호를 다시 입력해 주세요.") || "";
+    if (!state.viewerPassword) return;
+  }
+
+  const payload = {
+    organization: state.viewer.organizationName,
+    password: state.viewerPassword,
+    tag: els.createOrg.value,
+    title: els.createTitle.value.trim(),
+    date: els.createDate.value,
+    start: els.createStart.value,
+    end: els.createEnd.value,
+    location: els.createLocation.value.trim(),
+    description: els.createDescription.value.trim(),
+    tentative: els.createTentative.checked,
+  };
+
+  els.createSubmit.disabled = true;
+  els.createSubmit.textContent = "등록 중...";
+  try {
+    // text/plain 으로 보내 CORS preflight 없이 Apps Script에 전달합니다.
+    const response = await fetch(SCHEDULE_API.url, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(payload),
+    });
+    const result = await response.json();
+    if (!result.ok) {
+      if (result.code === "auth") state.viewerPassword = "";
+      throw new Error(result.error || "일정 등록에 실패했습니다.");
+    }
+
+    closeCreateModal();
+    state.selectedMonth = payload.date.slice(0, 7);
+    updateMonthLabel();
+    await loadEvents();
+    showNotice("일정이 Google 캘린더에 등록되었습니다.");
+  } catch (error) {
+    showCreateError(error.message);
+  } finally {
+    els.createSubmit.disabled = false;
+    els.createSubmit.textContent = "Google 캘린더에 등록";
+  }
 }
 
 function getDefaultScheduleDate() {
   const selected = parseMonthKey(state.selectedMonth);
   const now = new Date();
-  const date =
-    selected.getFullYear() === now.getFullYear() && selected.getMonth() === now.getMonth()
-      ? new Date(now)
-      : new Date(selected);
-
-  date.setHours(10, 0, 0, 0);
-  return date;
+  return selected.getFullYear() === now.getFullYear() && selected.getMonth() === now.getMonth()
+    ? new Date(now)
+    : new Date(selected);
 }
 
-function formatGoogleCalendarDate(date) {
-  const year = date.getFullYear();
+function formatDateInput(date) {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
-  const hour = String(date.getHours()).padStart(2, "0");
-  const minute = String(date.getMinutes()).padStart(2, "0");
-  const second = String(date.getSeconds()).padStart(2, "0");
-  return `${year}${month}${day}T${hour}${minute}${second}`;
+  return `${date.getFullYear()}-${month}-${day}`;
 }
 
 function showNotice(message) {

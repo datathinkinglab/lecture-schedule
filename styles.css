@@ -1122,3 +1122,44 @@ select {
     font-size: 22px;
   }
 }
+
+.create-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f7f9f9;
+}
+
+.create-form .create-wide {
+  grid-column: 1 / -1;
+}
+
+.create-form textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  font: inherit;
+  resize: vertical;
+}
+
+.create-form .create-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+.create-form .create-check input {
+  width: auto;
+  height: auto;
+}
+
+@media (max-width: 640px) {
+  .create-form {
+    grid-template-columns: 1fr;
+  }
+}

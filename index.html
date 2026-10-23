@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>강의 일정 대시보드</title>
-    <link rel="stylesheet" href="./styles.css?v=20260904-1" />
+    <link rel="stylesheet" href="./styles.css?v=20261023-1" />
   </head>
   <body>
     <section class="auth-screen" id="authScreen" aria-labelledby="authTitle">
@@ -115,7 +115,7 @@
                 <h2 id="viewTitle">다가오는 강의</h2>
               </div>
               <div class="section-actions">
-                <button class="add-schedule-button is-hidden" type="button" id="addScheduleButton">일정 추가</button>
+                <button class="add-schedule-button" type="button" id="addScheduleButton">일정 등록</button>
                 <span id="resultCount">0개 일정</span>
               </div>
             </div>
@@ -224,6 +224,55 @@
       </article>
     </div>
 
-    <script src="./app.js?v=20261002-1"></script>
+    <div class="event-modal is-hidden" id="createModal" role="dialog" aria-modal="true" aria-labelledby="createModalTitle">
+      <div class="event-modal-backdrop" data-close-create></div>
+      <article class="event-modal-panel admin-modal-panel">
+        <button class="icon-button modal-close" type="button" id="createCloseButton" title="닫기" aria-label="닫기">
+          <span aria-hidden="true">×</span>
+        </button>
+        <p class="eyebrow">New Schedule</p>
+        <h2 id="createModalTitle">강의 일정 등록</h2>
+        <p class="admin-description">등록한 일정은 Google 캘린더에 바로 추가되며, 캘린더를 구독한 모든 기기에 동기화됩니다.</p>
+
+        <form class="create-form" id="createForm" autocomplete="off">
+          <div class="create-wide">
+            <label for="createTitle">강의명</label>
+            <input id="createTitle" type="text" maxlength="100" required />
+          </div>
+          <div>
+            <label for="createOrg">공개 대상 소속</label>
+            <select id="createOrg" required></select>
+          </div>
+          <div>
+            <label for="createDate">날짜</label>
+            <input id="createDate" type="date" required />
+          </div>
+          <div>
+            <label for="createStart">시작</label>
+            <input id="createStart" type="time" value="10:00" required />
+          </div>
+          <div>
+            <label for="createEnd">종료</label>
+            <input id="createEnd" type="time" value="12:00" required />
+          </div>
+          <div class="create-wide">
+            <label for="createLocation">장소</label>
+            <input id="createLocation" type="text" maxlength="200" />
+          </div>
+          <div class="create-wide">
+            <label for="createDescription">설명</label>
+            <textarea id="createDescription" rows="3" maxlength="2000"></textarea>
+          </div>
+          <label class="create-check create-wide">
+            <input id="createTentative" type="checkbox" /> 아직 미정인 일정입니다
+          </label>
+          <p class="auth-error is-hidden create-wide" id="createError" role="alert"></p>
+          <button class="auth-submit create-wide" id="createSubmit" type="submit">Google 캘린더에 등록</button>
+        </form>
+        <p class="edit-hint">제목 앞에 선택한 소속의 [태그]가 자동으로 붙습니다. 로그인한 소속의 비밀번호로 서버에서 다시 확인합니다.</p>
+      </article>
+    </div>
+
+    <script src="./app.js?v=20261023-1"></script>
   </body>
 </html>
