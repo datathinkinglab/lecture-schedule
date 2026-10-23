@@ -7,7 +7,7 @@ const CALENDAR_CONFIG = {
 
 // 일정 등록용 Google Apps Script 웹앱 URL (apps-script/README.md 참고). 비어 있으면 등록 버튼이 안내 메시지를 표시합니다.
 const SCHEDULE_API = {
-  url: "",
+  url: "https://script.google.com/macros/s/AKfycbxCb4zG_irEyH536wfQ4z_-N_fRvzuQNZw4kzKNFb1PFtJrE6ukkMC37MXBjo-bJdJl/exec",
 };
 
 const ACCESS_CONFIG = {
