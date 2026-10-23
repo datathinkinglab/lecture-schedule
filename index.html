@@ -148,7 +148,7 @@
           <p class="event-location"></p>
           <p class="event-description"></p>
           <a class="edit-calendar-link event-edit-link is-hidden" href="#" target="_blank" rel="noopener">
-            일정 수정
+            Google 캘린더에서 열기
           </a>
         </div>
       </article>
@@ -169,9 +169,10 @@
           <button type="button" data-certainty="confirmed">확정으로 변경</button>
           <button type="button" data-certainty="tentative">미정으로 변경</button>
         </div>
+        <button class="auth-submit modal-edit-button is-hidden" id="modalEditButton" type="button">사이트에서 수정</button>
         <p class="edit-hint" id="modalEditHint">확정/미정 변경은 이 브라우저의 대시보드 표시용으로 저장됩니다.</p>
         <a class="edit-calendar-link is-hidden" id="modalEditLink" href="#" target="_blank" rel="noopener">
-          일정 및 확정 여부 수정
+          Google 캘린더에서 열기
         </a>
       </article>
     </div>
@@ -269,10 +270,10 @@
           <p class="auth-error is-hidden create-wide" id="createError" role="alert"></p>
           <button class="auth-submit create-wide" id="createSubmit" type="submit">Google 캘린더에 등록</button>
         </form>
-        <p class="edit-hint">제목 앞에 선택한 소속의 [태그]가 자동으로 붙습니다. 로그인한 소속의 비밀번호로 서버에서 다시 확인합니다.</p>
+        <p class="edit-hint">제목 앞에 선택한 소속의 [태그]가 자동으로 붙습니다. 수정은 해당 소속 또는 관리자만 가능합니다. 로그인한 소속의 비밀번호로 서버에서 다시 확인합니다.</p>
       </article>
     </div>
 
-    <script src="./app.js?v=20261023-1"></script>
+    <script src="./app.js?v=20261023-2"></script>
   </body>
 </html>

@@ -45,6 +45,26 @@ function doPost(e) {
     try {
       const calendar = CalendarApp.getCalendarById(props.getProperty("CALENDAR_ID"));
       if (!calendar) return json_({ ok: false, error: "캘린더를 찾을 수 없습니다. 서버 설정을 확인해 주세요." });
+
+      if (data.action === "update") {
+        const event = calendar.getEventById(String(data.id || ""));
+        if (!event) return json_({ ok: false, error: "수정할 일정을 찾을 수 없습니다." });
+        if (event.isAllDayEvent()) return json_({ ok: false, error: "종일 일정은 사이트에서 수정할 수 없습니다." });
+
+        // 수정 권한은 기존 일정의 태그 기준으로 확인합니다.
+        const currentTagMatch = event.getTitle().match(/^\[([^\]]+)\]/);
+        const currentTag = currentTagMatch ? currentTagMatch[1] : "";
+        if (role.type !== "admin" && currentTag !== role.name && currentTag !== SHARED_TAG) {
+          return json_({ ok: false, error: "이 일정을 수정할 권한이 없습니다." });
+        }
+
+        event.setTitle(fullTitle);
+        event.setTime(start, end);
+        event.setLocation(clean_(data.location, 200));
+        event.setDescription(clean_(data.description, 2000) + "\n\n수정: " + role.name + " (사이트 수정)");
+        return json_({ ok: true, id: event.getId() });
+      }
+
       const created = calendar.createEvent(fullTitle, start, end, {
         location: clean_(data.location, 200),
         description: description,

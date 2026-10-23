@@ -84,6 +84,7 @@ const state = {
   viewer: null,
   viewerPassword: "",
   activeEventId: null,
+  editingEvent: null,
   lastSyncedAt: null,
   accessLastSyncedAt: null,
 };
@@ -122,6 +123,8 @@ const els = {
   modalLocation: document.querySelector("#modalLocation"),
   modalDescription: document.querySelector("#modalDescription"),
   modalEditLink: document.querySelector("#modalEditLink"),
+  modalEditButton: document.querySelector("#modalEditButton"),
+  createModalTitle: document.querySelector("#createModalTitle"),
   modalCertaintyActions: document.querySelector(".modal-certainty-actions"),
   adminModal: document.querySelector("#adminModal"),
   adminCloseButton: document.querySelector("#adminCloseButton"),
@@ -221,7 +224,14 @@ function bindEvents() {
   els.prevMonthButton.addEventListener("click", () => changeMonth(-1));
   els.nextMonthButton.addEventListener("click", () => changeMonth(1));
   els.refreshButton.addEventListener("click", refreshDashboard);
-  els.addScheduleButton.addEventListener("click", openCreateModal);
+  els.addScheduleButton.addEventListener("click", () => openCreateModal());
+  els.modalEditButton.addEventListener("click", () => {
+    const target = state.events.find((item) => item.id === state.activeEventId);
+    if (target) {
+      closeEventModal();
+      openCreateModal(target);
+    }
+  });
   els.createCloseButton.addEventListener("click", closeCreateModal);
   els.createForm.addEventListener("submit", submitSchedule);
   els.createModal.addEventListener("click", (event) => {
@@ -305,6 +315,8 @@ function normalizeEvents(events) {
     const endRaw = event.end?.dateTime || event.end?.date || startRaw;
     return {
       id: event.id,
+      iCalUID: event.iCalUID || "",
+      rawTitle: event.summary || "",
       title: event.summary || "제목 없는 강의",
       location: event.location || "",
       description: stripHtml(event.description || ""),
@@ -544,6 +556,7 @@ function renderEventModal(event) {
   els.modalEditLink.classList.toggle("is-hidden", !event.editLink || !canSeeDetails);
   els.modalEditLink.href = event.editLink || "#";
   els.modalCertaintyActions.classList.toggle("is-hidden", !canSeeDetails);
+  els.modalEditButton.classList.toggle("is-hidden", !canViewerEditEvent(event));
   if (canSeeDetails) {
     bindCertaintyControls(els.eventModal, event);
   }
@@ -593,11 +606,16 @@ function updateEventCertainty(eventId, certainty) {
   }
 }
 
-function openCreateModal() {
+function openCreateModal(editEvent = null) {
+  state.editingEvent = editEvent;
   const isAdmin = state.viewer?.role === "admin";
+  const current = editEvent ? splitEventTitle(editEvent.rawTitle) : null;
   const options = isAdmin
     ? [...state.accessData.organizations.map((item) => item.name), "공통", ""]
     : [state.viewer.organizationName, "공통"];
+  if (current && !options.includes(current.tag)) {
+    options.push(current.tag);
+  }
 
   els.createOrg.replaceChildren(
     ...options.map((name) => {
@@ -608,12 +626,56 @@ function openCreateModal() {
     }),
   );
   els.createForm.reset();
-  els.createDate.value = formatDateInput(getDefaultScheduleDate());
-  els.createStart.value = "10:00";
-  els.createEnd.value = "12:00";
+  els.createModalTitle.textContent = editEvent ? "강의 일정 수정" : "강의 일정 등록";
+  els.createSubmit.textContent = editEvent ? "수정 내용 저장" : "Google 캘린더에 등록";
+
+  if (editEvent) {
+    const start = getKstParts(editEvent.startDate);
+    const end = getKstParts(editEvent.endDate);
+    els.createTitle.value = current.title;
+    els.createOrg.value = current.tag;
+    els.createDate.value = start.date;
+    els.createStart.value = start.time;
+    els.createEnd.value = end.time;
+    els.createLocation.value = editEvent.location;
+    els.createDescription.value = editEvent.description.replace(/\s*(등록|수정): [^\n]*\(사이트 (등록|수정)\)\s*$/, "").trim();
+    els.createTentative.checked = current.tentative;
+  } else {
+    els.createDate.value = formatDateInput(getDefaultScheduleDate());
+    els.createStart.value = "10:00";
+    els.createEnd.value = "12:00";
+  }
   els.createError.classList.add("is-hidden");
   els.createModal.classList.remove("is-hidden");
   els.createTitle.focus();
+}
+
+function splitEventTitle(rawTitle) {
+  const tagMatch = rawTitle.match(/^\[([^\]]+)\]\s*/);
+  const rest = tagMatch ? rawTitle.slice(tagMatch[0].length) : rawTitle;
+  const tentative = /\s*\(미정\)\s*$/.test(rest);
+  return {
+    tag: tagMatch ? tagMatch[1] : "",
+    title: rest.replace(/\s*\(미정\)\s*$/, ""),
+    tentative,
+  };
+}
+
+function getKstParts(date) {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-CA", {
+      timeZone: CALENDAR_CONFIG.timezone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    })
+      .formatToParts(date)
+      .map((part) => [part.type, part.value]),
+  );
+  return { date: `${parts.year}-${parts.month}-${parts.day}`, time: `${parts.hour}:${parts.minute}` };
 }
 
 function closeCreateModal() {
@@ -643,7 +705,10 @@ async function submitSchedule(event) {
     if (!state.viewerPassword) return;
   }
 
+  const editing = state.editingEvent;
   const payload = {
+    action: editing ? "update" : "create",
+    id: editing ? editing.iCalUID : "",
     organization: state.viewer.organizationName,
     password: state.viewerPassword,
     tag: els.createOrg.value,
@@ -671,16 +736,17 @@ async function submitSchedule(event) {
       throw new Error(result.error || "일정 등록에 실패했습니다.");
     }
 
+    const wasEditing = Boolean(editing);
     closeCreateModal();
     state.selectedMonth = payload.date.slice(0, 7);
     updateMonthLabel();
     await loadEvents();
-    showNotice("일정이 Google 캘린더에 등록되었습니다.");
+    showNotice(wasEditing ? "일정이 수정되어 Google 캘린더에 반영되었습니다." : "일정이 Google 캘린더에 등록되었습니다.");
   } catch (error) {
     showCreateError(error.message);
   } finally {
     els.createSubmit.disabled = false;
-    els.createSubmit.textContent = "Google 캘린더에 등록";
+    els.createSubmit.textContent = state.editingEvent ? "수정 내용 저장" : "Google 캘린더에 등록";
   }
 }
 
@@ -767,6 +833,18 @@ function canViewerSeeEventDetails(event) {
   }
 
   return false;
+}
+
+function canViewerEditEvent(event) {
+  if (!state.viewer || !event.iCalUID || event.allDay) {
+    return false;
+  }
+
+  return (
+    state.viewer.role === "admin" ||
+    event.organizationIds.includes("all") ||
+    event.organizationIds.includes(state.viewer.organizationId)
+  );
 }
 
 function getSearchableEventText(event) {
