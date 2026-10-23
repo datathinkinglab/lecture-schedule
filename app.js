@@ -151,6 +151,7 @@ const els = {
   createTentative: document.querySelector("#createTentative"),
   createError: document.querySelector("#createError"),
   createSubmit: document.querySelector("#createSubmit"),
+  createDelete: document.querySelector("#createDelete"),
 };
 
 init();
@@ -234,6 +235,7 @@ function bindEvents() {
   });
   els.createCloseButton.addEventListener("click", closeCreateModal);
   els.createForm.addEventListener("submit", submitSchedule);
+  els.createDelete.addEventListener("click", deleteSchedule);
   els.createModal.addEventListener("click", (event) => {
     if (event.target.matches("[data-close-create]")) {
       closeCreateModal();
@@ -628,6 +630,7 @@ function openCreateModal(editEvent = null) {
   els.createForm.reset();
   els.createModalTitle.textContent = editEvent ? "강의 일정 수정" : "강의 일정 등록";
   els.createSubmit.textContent = editEvent ? "수정 내용 저장" : "Google 캘린더에 등록";
+  els.createDelete.classList.toggle("is-hidden", !editEvent);
 
   if (editEvent) {
     const start = getKstParts(editEvent.startDate);
@@ -687,6 +690,57 @@ function showCreateError(message) {
   els.createError.classList.remove("is-hidden");
 }
 
+function ensureViewerPassword() {
+  if (!state.viewerPassword) {
+    state.viewerPassword = window.prompt("일정을 변경하려면 로그인 비밀번호를 다시 입력해 주세요.") || "";
+  }
+  return Boolean(state.viewerPassword);
+}
+
+async function postSchedule(payload) {
+  // text/plain 으로 보내 CORS preflight 없이 Apps Script에 전달합니다.
+  const response = await fetch(SCHEDULE_API.url, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify(payload),
+  });
+  const result = await response.json();
+  if (!result.ok) {
+    if (result.code === "auth") state.viewerPassword = "";
+    throw new Error(result.error || "요청 처리에 실패했습니다.");
+  }
+  return result;
+}
+
+async function deleteSchedule() {
+  const target = state.editingEvent;
+  if (!target || !window.confirm(`"${target.title}" 일정을 Google 캘린더에서 삭제할까요?\n삭제하면 되돌릴 수 없습니다.`)) {
+    return;
+  }
+  if (!ensureViewerPassword()) return;
+
+  els.createDelete.disabled = true;
+  els.createSubmit.disabled = true;
+  els.createDelete.textContent = "삭제 중...";
+  try {
+    await postSchedule({
+      action: "delete",
+      id: target.iCalUID,
+      organization: state.viewer.organizationName,
+      password: state.viewerPassword,
+    });
+    closeCreateModal();
+    await loadEvents();
+    showNotice("일정이 삭제되었습니다.");
+  } catch (error) {
+    showCreateError(error.message);
+  } finally {
+    els.createDelete.disabled = false;
+    els.createSubmit.disabled = false;
+    els.createDelete.textContent = "일정 삭제";
+  }
+}
+
 async function submitSchedule(event) {
   event.preventDefault();
   els.createError.classList.add("is-hidden");
@@ -700,10 +754,7 @@ async function submitSchedule(event) {
     return;
   }
 
-  if (!state.viewerPassword) {
-    state.viewerPassword = window.prompt("일정을 등록하려면 로그인 비밀번호를 다시 입력해 주세요.") || "";
-    if (!state.viewerPassword) return;
-  }
+  if (!ensureViewerPassword()) return;
 
   const editing = state.editingEvent;
   const payload = {
@@ -724,17 +775,7 @@ async function submitSchedule(event) {
   els.createSubmit.disabled = true;
   els.createSubmit.textContent = "등록 중...";
   try {
-    // text/plain 으로 보내 CORS preflight 없이 Apps Script에 전달합니다.
-    const response = await fetch(SCHEDULE_API.url, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify(payload),
-    });
-    const result = await response.json();
-    if (!result.ok) {
-      if (result.code === "auth") state.viewerPassword = "";
-      throw new Error(result.error || "일정 등록에 실패했습니다.");
-    }
+    await postSchedule(payload);
 
     const wasEditing = Boolean(editing);
     closeCreateModal();

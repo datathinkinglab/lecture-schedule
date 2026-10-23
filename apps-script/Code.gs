@@ -22,6 +22,8 @@ function doPost(e) {
       return json_({ ok: false, code: "auth", error: "소속 또는 비밀번호가 올바르지 않습니다." });
     }
 
+    if (data.action === "delete") return deleteEvent_(data, role, props);
+
     const tag = String(data.tag || "").trim();
     if (role.type !== "admin" && tag !== role.name && tag !== SHARED_TAG) {
       return json_({ ok: false, error: "해당 소속으로는 일정을 등록할 수 없습니다." });
@@ -75,6 +77,30 @@ function doPost(e) {
     }
   } catch (err) {
     return json_({ ok: false, error: "처리 중 오류가 발생했습니다: " + err.message });
+  }
+}
+
+function deleteEvent_(data, role, props) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const calendar = CalendarApp.getCalendarById(props.getProperty("CALENDAR_ID"));
+    if (!calendar) return json_({ ok: false, error: "캘린더를 찾을 수 없습니다. 서버 설정을 확인해 주세요." });
+
+    const event = calendar.getEventById(String(data.id || ""));
+    if (!event) return json_({ ok: false, error: "삭제할 일정을 찾을 수 없습니다." });
+
+    // 삭제 권한은 수정과 같이 기존 일정의 태그 기준으로 확인합니다.
+    const tagMatch = event.getTitle().match(/^\[([^\]]+)\]/);
+    const currentTag = tagMatch ? tagMatch[1] : "";
+    if (role.type !== "admin" && currentTag !== role.name && currentTag !== SHARED_TAG) {
+      return json_({ ok: false, error: "이 일정을 삭제할 권한이 없습니다." });
+    }
+
+    event.deleteEvent();
+    return json_({ ok: true });
+  } finally {
+    lock.releaseLock();
   }
 }
 
