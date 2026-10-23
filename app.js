@@ -392,9 +392,12 @@ function renderAgenda(events) {
     node.querySelector(".event-description").textContent = canSeeDetails
       ? event.description || "상세 설명이 없습니다."
       : "상세 내용은 표시되지 않습니다.";
-    const editLink = node.querySelector(".event-edit-link");
-    editLink.classList.toggle("is-hidden", !event.editLink || !canSeeDetails);
-    editLink.href = event.editLink || "#";
+    const siteEdit = node.querySelector(".event-site-edit");
+    siteEdit.classList.toggle("is-hidden", !canViewerEditEvent(event));
+    siteEdit.addEventListener("click", () => openCreateModal(event));
+    const googleLink = node.querySelector(".event-google-link");
+    googleLink.classList.toggle("is-hidden", !event.editLink || !canSeeDetails);
+    googleLink.href = event.editLink || "#";
     if (canSeeDetails) {
       bindCertaintyToggle(pill, event);
     } else {

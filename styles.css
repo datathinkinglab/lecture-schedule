@@ -805,11 +805,21 @@ select {
   text-decoration: none;
 }
 
-.event-edit-link {
+.event-site-edit {
   min-height: 36px;
   margin-top: 12px;
   padding: 0 12px;
+  border: 0;
   font-size: 13px;
+  cursor: pointer;
+}
+
+.event-google-link {
+  display: inline-block;
+  margin: 12px 0 0 12px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .edit-hint {
