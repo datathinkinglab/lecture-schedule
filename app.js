@@ -75,7 +75,8 @@ const DEMO_EVENTS = [
 
 const state = {
   events: [],
-  view: "agenda",
+  view: "month",
+  selectedDay: null,
   query: "",
   status: "all",
   selectedMonth: getMonthKey(new Date()),
@@ -101,6 +102,9 @@ const els = {
   logoutButton: document.querySelector("#logoutButton"),
   agendaView: document.querySelector("#agendaView"),
   monthView: document.querySelector("#monthView"),
+  monthGrid: document.querySelector("#monthGrid"),
+  dayScheduleTitle: document.querySelector("#dayScheduleTitle"),
+  dayScheduleEvents: document.querySelector("#dayScheduleEvents"),
   emptyState: document.querySelector("#emptyState"),
   eventTemplate: document.querySelector("#eventTemplate"),
   resultCount: document.querySelector("#resultCount"),
@@ -187,8 +191,10 @@ function bindEvents() {
   document.querySelectorAll("[data-view]").forEach((button) => {
     button.addEventListener("click", () => {
       state.view = button.dataset.view;
-      document.querySelectorAll("[data-view]").forEach((tab) => tab.classList.remove("is-active"));
-      button.classList.add("is-active");
+      document.querySelectorAll("[data-view]").forEach((tab) => {
+        tab.classList.toggle("is-active", tab === button);
+        tab.setAttribute("aria-pressed", String(tab === button));
+      });
       render();
     });
   });
@@ -335,12 +341,15 @@ function normalizeEvents(events) {
 function render() {
   const filtered = getFilteredEvents();
   renderSummary(filtered);
-  renderAgenda(filtered);
-  renderMonth(filtered);
+  if (state.view === "month") {
+    renderMonth(filtered);
+  } else {
+    renderAgenda(filtered);
+  }
 
   els.agendaView.classList.toggle("is-hidden", state.view !== "agenda");
   els.monthView.classList.toggle("is-hidden", state.view !== "month");
-  els.emptyState.classList.toggle("is-hidden", filtered.length > 0);
+  els.emptyState.classList.toggle("is-hidden", state.view === "month" || filtered.length > 0);
   els.viewTitle.textContent = `${formatMonthLabel(state.selectedMonth)} 강의`;
   els.resultCount.textContent = `${filtered.length}개 일정`;
 }
@@ -413,51 +422,128 @@ function renderAgenda(events) {
 }
 
 function renderMonth(events) {
-  els.monthView.replaceChildren();
   const selected = parseMonthKey(state.selectedMonth);
-  const first = new Date(selected.getFullYear(), selected.getMonth(), 1);
+  const today = new Date();
   const last = new Date(selected.getFullYear(), selected.getMonth() + 1, 0);
-  const startOffset = first.getDay();
+  const monthLabel = formatMonthLabel(state.selectedMonth);
+  const startOffset = selected.getDay();
   const totalCells = Math.ceil((startOffset + last.getDate()) / 7) * 7;
+  const calendar = document.createDocumentFragment();
+  const dayEventsByDate = new Map();
+
+  events.forEach((event) => {
+    const day = event.startDate.getDate();
+    if (!dayEventsByDate.has(day)) dayEventsByDate.set(day, []);
+    dayEventsByDate.get(day).push(event);
+  });
+
+  state.selectedDay ??= getMonthKey(today) === state.selectedMonth
+    ? today.getDate()
+    : dayEventsByDate.keys().next().value ?? 1;
+
+  ["일", "월", "화", "수", "목", "금", "토"].forEach((weekday) => {
+    const label = document.createElement("span");
+    label.className = "month-weekday";
+    label.textContent = weekday;
+    calendar.append(label);
+  });
 
   for (let i = 0; i < totalCells; i += 1) {
     const dayNumber = i - startOffset + 1;
-    const cell = document.createElement("div");
-    cell.className = "month-cell is-empty";
-
-    if (dayNumber >= 1 && dayNumber <= last.getDate()) {
-      const date = new Date(selected.getFullYear(), selected.getMonth(), dayNumber);
-      const dayEvents = events.filter((event) => isSameDay(event.startDate, date));
-      const label = document.createElement("strong");
-      label.textContent = `${dayNumber}일 ${formatWeekday(date)}`;
-      cell.append(label);
-
-      if (dayEvents.length > 0) {
-        cell.classList.remove("is-empty");
-      }
-
-      dayEvents
-        .slice(0, 4)
-        .forEach((event) => {
-          const item = document.createElement("button");
-          item.type = "button";
-          item.className = "month-event";
-          const canSeeDetails = canViewerSeeEventDetails(event);
-          item.classList.toggle("is-tentative", canSeeDetails && event.certainty === "tentative");
-          item.classList.toggle("is-private", !canSeeDetails);
-          item.title = canSeeDetails ? event.title : "다른 소속 일정";
-          item.textContent = canSeeDetails
-            ? event.certainty === "tentative"
-              ? `미정 · ${event.title}`
-              : event.title
-            : "일정 있음";
-          item.addEventListener("click", () => openEventModal(event));
-          cell.append(item);
-        });
+    if (dayNumber < 1 || dayNumber > last.getDate()) {
+      const spacer = document.createElement("span");
+      spacer.className = "month-cell is-padding";
+      spacer.setAttribute("aria-hidden", "true");
+      calendar.append(spacer);
+      continue;
     }
 
-    els.monthView.append(cell);
+    const date = new Date(selected.getFullYear(), selected.getMonth(), dayNumber);
+    const dayEvents = dayEventsByDate.get(dayNumber) || [];
+    const visibleEvents = dayEvents.filter(canViewerSeeEventDetails);
+    const privateCount = dayEvents.length - visibleEvents.length;
+    const cell = document.createElement("button");
+    cell.type = "button";
+    cell.className = "month-cell month-day";
+    cell.dataset.day = dayNumber;
+    cell.setAttribute("aria-pressed", String(dayNumber === state.selectedDay));
+    cell.setAttribute(
+      "aria-label",
+      `${monthLabel} ${dayNumber}일, 공개 일정 ${visibleEvents.length}건, 비공개 일정 ${privateCount}건`,
+    );
+    if (isSameDay(date, today)) cell.setAttribute("aria-current", "date");
+
+    const label = document.createElement("strong");
+    label.textContent = dayNumber;
+    cell.append(label);
+
+    if (visibleEvents.length) {
+      const remaining = visibleEvents.length - 1;
+      const title = remaining
+        ? `${visibleEvents[0].title} 외 ${remaining}건`
+        : visibleEvents[0].title;
+      cell.append(createMonthBlock(title, visibleEvents.length, false));
+    }
+    if (privateCount) {
+      cell.append(createMonthBlock("일정 있음", privateCount, true));
+    }
+
+    cell.addEventListener("click", () => {
+      els.monthGrid.querySelector('[aria-pressed="true"]')?.setAttribute("aria-pressed", "false");
+      cell.setAttribute("aria-pressed", "true");
+      state.selectedDay = dayNumber;
+      renderDaySchedule(date, dayEvents);
+    });
+    calendar.append(cell);
   }
+
+  els.monthGrid.replaceChildren(calendar);
+  const date = new Date(selected.getFullYear(), selected.getMonth(), state.selectedDay);
+  renderDaySchedule(date, dayEventsByDate.get(state.selectedDay) || []);
+}
+
+function createMonthBlock(title, count, isPrivate) {
+  const block = document.createElement("span");
+  block.className = "month-block";
+  block.classList.toggle("is-private", isPrivate);
+  block.setAttribute("aria-hidden", "true");
+
+  const preview = document.createElement("span");
+  preview.className = "month-preview";
+  preview.textContent = title;
+  const countLabel = document.createElement("span");
+  countLabel.className = "month-day-count";
+  countLabel.textContent = `${count}건`;
+  block.append(preview, countLabel);
+  return block;
+}
+
+function renderDaySchedule(date, events) {
+  els.dayScheduleTitle.textContent = `${date.getMonth() + 1}월 ${date.getDate()}일 ${formatWeekday(date)}`;
+  els.dayScheduleEvents.replaceChildren();
+  if (!events.length) {
+    const message = document.createElement("p");
+    message.textContent = "표시할 일정이 없습니다.";
+    els.dayScheduleEvents.append(message);
+    return;
+  }
+
+  events.forEach((event) => {
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = "month-event";
+    const canSeeDetails = canViewerSeeEventDetails(event);
+    item.classList.toggle("is-private", !canSeeDetails);
+    item.textContent = canSeeDetails
+      ? `${formatEventTime(event)} · ${event.title} · ${event.certainty === "tentative" ? "미정" : "확정"}`
+      : "일정 있음";
+    if (canSeeDetails) {
+      item.addEventListener("click", () => openEventModal(event));
+    } else {
+      item.disabled = true;
+    }
+    els.dayScheduleEvents.append(item);
+  });
 }
 
 function hydrateFromUrl() {
@@ -470,6 +556,7 @@ function hydrateFromUrl() {
 
 function changeMonth(offset) {
   state.selectedMonth = getMonthKey(shiftMonth(parseMonthKey(state.selectedMonth), offset));
+  state.selectedDay = null;
   updateMonthLabel();
   loadEvents();
 }
