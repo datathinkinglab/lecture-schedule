@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>강의 일정 대시보드</title>
-    <link rel="stylesheet" href="./styles.css?v=20261124-2" />
+    <link rel="stylesheet" href="./styles.css?v=20261124-3" />
   </head>
   <body>
     <section class="auth-screen" id="authScreen" aria-labelledby="authTitle">
@@ -123,6 +123,11 @@
             <div class="agenda-view is-hidden" id="agendaView"></div>
             <div id="monthView">
               <div class="month-view" id="monthGrid" aria-label="월간 캘린더"></div>
+              <ul class="month-legend" aria-label="일정 색상">
+                <li><span class="month-key" aria-hidden="true"></span>확정</li>
+                <li><span class="month-key is-tentative" aria-hidden="true"></span>미정</li>
+                <li><span class="month-key is-private" aria-hidden="true"></span>비공개 일정</li>
+              </ul>
               <section class="day-schedule" aria-labelledby="dayScheduleTitle">
                 <h3 id="dayScheduleTitle"></h3>
                 <div id="dayScheduleEvents"></div>
@@ -280,6 +285,6 @@
       </article>
     </div>
 
-    <script src="./app.js?v=20261124-2"></script>
+    <script src="./app.js?v=20261124-3"></script>
   </body>
 </html>

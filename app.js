@@ -390,6 +390,7 @@ function renderAgenda(events) {
     node.querySelector(".date-month").textContent = formatMonth(event.startDate);
     node.querySelector(".date-day").textContent = formatDay(event.startDate);
     node.querySelector(".date-weekday").textContent = formatWeekday(event.startDate);
+    node.querySelector(".date-tile").classList.toggle("is-tentative", canSeeDetails && event.certainty === "tentative");
     node.classList.toggle("is-limited", !canSeeDetails);
     node.querySelector("h3").textContent = canSeeDetails ? event.title : "일정 있음";
     node.querySelector(".event-time").textContent = formatEventTime(event);
@@ -461,6 +462,8 @@ function renderMonth(events) {
     const date = new Date(selected.getFullYear(), selected.getMonth(), dayNumber);
     const dayEvents = dayEventsByDate.get(dayNumber) || [];
     const visibleEvents = dayEvents.filter(canViewerSeeEventDetails);
+    const confirmedEvents = visibleEvents.filter((event) => event.certainty !== "tentative");
+    const tentativeEvents = visibleEvents.filter((event) => event.certainty === "tentative");
     const privateCount = dayEvents.length - visibleEvents.length;
     const cell = document.createElement("button");
     cell.type = "button";
@@ -469,7 +472,7 @@ function renderMonth(events) {
     cell.setAttribute("aria-pressed", String(dayNumber === state.selectedDay));
     cell.setAttribute(
       "aria-label",
-      `${monthLabel} ${dayNumber}일, 공개 일정 ${visibleEvents.length}건, 비공개 일정 ${privateCount}건`,
+      `${monthLabel} ${dayNumber}일, 확정 ${confirmedEvents.length}건, 미정 ${tentativeEvents.length}건, 비공개 일정 ${privateCount}건`,
     );
     if (isSameDay(date, today)) cell.setAttribute("aria-current", "date");
 
@@ -477,15 +480,16 @@ function renderMonth(events) {
     label.textContent = dayNumber;
     cell.append(label);
 
-    if (visibleEvents.length) {
-      const remaining = visibleEvents.length - 1;
+    for (const [status, events] of [["confirmed", confirmedEvents], ["tentative", tentativeEvents]]) {
+      if (!events.length) continue;
+      const remaining = events.length - 1;
       const title = remaining
-        ? `${visibleEvents[0].title} 외 ${remaining}건`
-        : visibleEvents[0].title;
-      cell.append(createMonthBlock(title, visibleEvents.length, false));
+        ? `${events[0].title} 외 ${remaining}건`
+        : events[0].title;
+      cell.append(createMonthBlock(title, events.length, status));
     }
     if (privateCount) {
-      cell.append(createMonthBlock("일정 있음", privateCount, true));
+      cell.append(createMonthBlock("일정 있음", privateCount, "private"));
     }
 
     cell.addEventListener("click", () => {
@@ -502,10 +506,9 @@ function renderMonth(events) {
   renderDaySchedule(date, dayEventsByDate.get(state.selectedDay) || []);
 }
 
-function createMonthBlock(title, count, isPrivate) {
+function createMonthBlock(title, count, status) {
   const block = document.createElement("span");
-  block.className = "month-block";
-  block.classList.toggle("is-private", isPrivate);
+  block.className = `month-block is-${status}`;
   block.setAttribute("aria-hidden", "true");
 
   const preview = document.createElement("span");
@@ -534,6 +537,7 @@ function renderDaySchedule(date, events) {
     item.className = "month-event";
     const canSeeDetails = canViewerSeeEventDetails(event);
     item.classList.toggle("is-private", !canSeeDetails);
+    item.classList.toggle("is-tentative", canSeeDetails && event.certainty === "tentative");
     item.textContent = canSeeDetails
       ? `${formatEventTime(event)} · ${event.title} · ${event.certainty === "tentative" ? "미정" : "확정"}`
       : "일정 있음";

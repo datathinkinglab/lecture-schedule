@@ -6,6 +6,9 @@
   --line: #dce3e7;
   --accent: #0f7b72;
   --accent-dark: #075a54;
+  --schedule-confirmed: #117569;
+  --schedule-tentative: #b64d10;
+  --schedule-private: #616a73;
   --warm: #f1b74a;
   --rose: #c85665;
   --shadow: 0 18px 60px rgba(26, 39, 48, 0.12);
@@ -747,14 +750,53 @@ select {
 .month-block,
 .month-event {
   color: #fff;
-  background: #117569;
+  background: var(--schedule-confirmed);
   box-shadow: 0 2px 0 #084f47;
+}
+
+.month-block.is-tentative,
+.month-event.is-tentative,
+.date-tile.is-tentative {
+  background: var(--schedule-tentative);
+  box-shadow: 0 2px 0 #803409;
 }
 
 .month-block.is-private,
 .month-event.is-private {
-  background: #616a73;
+  background: var(--schedule-private);
   box-shadow: 0 2px 0 #414950;
+}
+
+.month-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.month-legend li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.month-key {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  background: var(--schedule-confirmed);
+}
+
+.month-key.is-tentative {
+  background: var(--schedule-tentative);
+}
+
+.month-key.is-private {
+  background: var(--schedule-private);
 }
 
 .month-block {
@@ -932,7 +974,7 @@ select {
   }
 
   .month-cell {
-    min-height: 69px;
+    min-height: 86px;
   }
 
   .month-day {
