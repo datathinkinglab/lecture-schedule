@@ -8,7 +8,6 @@
   --accent-dark: #075a54;
   --schedule-confirmed: #117569;
   --schedule-tentative: #b64d10;
-  --schedule-private: #616a73;
   --warm: #f1b74a;
   --rose: #c85665;
   --shadow: 0 18px 60px rgba(26, 39, 48, 0.12);
@@ -633,7 +632,7 @@ select {
 }
 
 .status-pill.is-tentative {
-  background: var(--rose);
+  background: var(--schedule-tentative);
 }
 
 .status-pill.is-private {
@@ -761,12 +760,6 @@ select {
   box-shadow: 0 2px 0 #803409;
 }
 
-.month-block.is-private,
-.month-event.is-private {
-  background: var(--schedule-private);
-  box-shadow: 0 2px 0 #414950;
-}
-
 .month-legend {
   display: flex;
   flex-wrap: wrap;
@@ -793,10 +786,6 @@ select {
 
 .month-key.is-tentative {
   background: var(--schedule-tentative);
-}
-
-.month-key.is-private {
-  background: var(--schedule-private);
 }
 
 .month-block {
@@ -974,7 +963,7 @@ select {
   }
 
   .month-cell {
-    min-height: 86px;
+    min-height: 69px;
   }
 
   .month-day {

@@ -390,10 +390,11 @@ function renderAgenda(events) {
     node.querySelector(".date-month").textContent = formatMonth(event.startDate);
     node.querySelector(".date-day").textContent = formatDay(event.startDate);
     node.querySelector(".date-weekday").textContent = formatWeekday(event.startDate);
-    node.querySelector(".date-tile").classList.toggle("is-tentative", canSeeDetails && event.certainty === "tentative");
+    const isTentative = event.certainty === "tentative";
+    node.querySelector(".date-tile").classList.toggle("is-tentative", isTentative);
     node.classList.toggle("is-limited", !canSeeDetails);
     node.querySelector("h3").textContent = canSeeDetails ? event.title : "일정 있음";
-    node.querySelector(".event-time").textContent = formatEventTime(event);
+    node.querySelector(".event-time").textContent = canSeeDetails ? formatEventTime(event) : "";
     node.querySelector(".event-location").textContent = canSeeDetails
       ? event.location
         ? `장소: ${event.location}`
@@ -411,10 +412,9 @@ function renderAgenda(events) {
     if (canSeeDetails) {
       bindCertaintyToggle(pill, event);
     } else {
-      pill.textContent = "비공개";
+      pill.textContent = isTentative ? "미정" : "확정";
       pill.title = "다른 소속 일정입니다.";
-      pill.setAttribute("aria-label", `${formatEventTime(event)} 다른 소속 일정`);
-      pill.className = "status-pill is-private";
+      pill.className = `status-pill ${isTentative ? "is-tentative" : "is-confirmed"}`;
       pill.disabled = true;
     }
 
@@ -461,10 +461,8 @@ function renderMonth(events) {
 
     const date = new Date(selected.getFullYear(), selected.getMonth(), dayNumber);
     const dayEvents = dayEventsByDate.get(dayNumber) || [];
-    const visibleEvents = dayEvents.filter(canViewerSeeEventDetails);
-    const confirmedEvents = visibleEvents.filter((event) => event.certainty !== "tentative");
-    const tentativeEvents = visibleEvents.filter((event) => event.certainty === "tentative");
-    const privateCount = dayEvents.length - visibleEvents.length;
+    const confirmedEvents = dayEvents.filter((event) => event.certainty !== "tentative");
+    const tentativeEvents = dayEvents.filter((event) => event.certainty === "tentative");
     const cell = document.createElement("button");
     cell.type = "button";
     cell.className = "month-cell month-day";
@@ -472,7 +470,7 @@ function renderMonth(events) {
     cell.setAttribute("aria-pressed", String(dayNumber === state.selectedDay));
     cell.setAttribute(
       "aria-label",
-      `${monthLabel} ${dayNumber}일, 확정 ${confirmedEvents.length}건, 미정 ${tentativeEvents.length}건, 비공개 일정 ${privateCount}건`,
+      `${monthLabel} ${dayNumber}일, 확정 ${confirmedEvents.length}건, 미정 ${tentativeEvents.length}건`,
     );
     if (isSameDay(date, today)) cell.setAttribute("aria-current", "date");
 
@@ -482,14 +480,12 @@ function renderMonth(events) {
 
     for (const [status, events] of [["confirmed", confirmedEvents], ["tentative", tentativeEvents]]) {
       if (!events.length) continue;
+      const visibleEvent = events.find(canViewerSeeEventDetails);
       const remaining = events.length - 1;
-      const title = remaining
-        ? `${events[0].title} 외 ${remaining}건`
-        : events[0].title;
+      const title = visibleEvent
+        ? visibleEvent.title + (remaining ? ` 외 ${remaining}건` : "")
+        : `일정 있음 · ${events.length}건`;
       cell.append(createMonthBlock(title, events.length, status));
-    }
-    if (privateCount) {
-      cell.append(createMonthBlock("일정 있음", privateCount, "private"));
     }
 
     cell.addEventListener("click", () => {
@@ -536,11 +532,12 @@ function renderDaySchedule(date, events) {
     item.type = "button";
     item.className = "month-event";
     const canSeeDetails = canViewerSeeEventDetails(event);
-    item.classList.toggle("is-private", !canSeeDetails);
-    item.classList.toggle("is-tentative", canSeeDetails && event.certainty === "tentative");
+    const isTentative = event.certainty === "tentative";
+    const status = isTentative ? "미정" : "확정";
+    item.classList.toggle("is-tentative", isTentative);
     item.textContent = canSeeDetails
-      ? `${formatEventTime(event)} · ${event.title} · ${event.certainty === "tentative" ? "미정" : "확정"}`
-      : "일정 있음";
+      ? `${formatEventTime(event)} · ${event.title} · ${status}`
+      : `일정 있음 · ${status}`;
     if (canSeeDetails) {
       item.addEventListener("click", () => openEventModal(event));
     } else {
